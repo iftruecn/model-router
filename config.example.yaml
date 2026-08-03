@@ -1,50 +1,29 @@
-# Model Router — Configuration
-# Copy this file to config.yaml and fill in your API keys.
+# ╔══════════════════════════════════════════════════════════════╗
+# ║           Model Router — 全球 Top 50+ LLM 模型库              ║
+# ║                  by iftrue-hermes / MIT                       ║
+# ╚══════════════════════════════════════════════════════════════╝
 #
-# Each model needs:
-#   name:        Display name
-#   base_url:    API endpoint (must be OpenAI-compatible)
-#   api_key:     Your API key
-#   model:       Model ID to pass to the API
-#   tier:        "flash" (cheap/fast) or "pro" (powerful)
-#   multimodal:  true if the model supports image input
-#   cost:        "low" / "medium" / "high" (informational only)
-#   speed:       "fast" / "normal" / "slow" (informational only)
+# 用法 / Usage:
+#   1. 复制此文件为 config.yaml / Copy to config.yaml
+#   2. 选择你想用的模型，取消注释并填入 API Key
+#      Uncomment models you want, fill in api_key
+#   3. 未使用的模型保持注释状态即可 / Keep unused models commented
+#
+# 模型分层 / Tiers:
+#   flash  = 快速/便宜，适合简单问答 / Fast & cheap, for simple Q&A
+#   pro    = 强大/全面，适合复杂任务 / Powerful, for complex tasks
+#
+# 多模态标记 / multimodal:
+#   true   = 支持图片/视频输入 / Supports images/video
+#   false  = 纯文本 / Text only
 
 models:
 
-  # ── Flash tier: fast & cheap, for simple queries ──
-  gpt-4o-mini:
-    name: "GPT-4o Mini"
-    base_url: "https://api.openai.com/v1"
-    api_key: "sk-your-openai-key"
-    model: "gpt-4o-mini"
-    tier: "flash"
-    multimodal: true
-    cost: "low"
-    speed: "fast"
+  # ────────────────────────────────────────────────────────────
+  # OpenAI — api.openai.com
+  # 注册: https://platform.openai.com/api-keys
+  # ────────────────────────────────────────────────────────────
 
-  claude-haiku:
-    name: "Claude 3.5 Haiku"
-    base_url: "https://api.anthropic.com/v1"
-    api_key: "sk-ant-your-anthropic-key"
-    model: "claude-3-5-haiku-latest"
-    tier: "flash"
-    multimodal: true
-    cost: "low"
-    speed: "fast"
-
-  gemini-flash:
-    name: "Gemini 2.5 Flash"
-    base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
-    api_key: "your-gemini-key"
-    model: "gemini-2.5-flash"
-    tier: "flash"
-    multimodal: true
-    cost: "low"
-    speed: "fast"
-
-  # ── Pro tier: powerful, for complex tasks ──
   gpt-4o:
     name: "GPT-4o"
     base_url: "https://api.openai.com/v1"
@@ -55,7 +34,52 @@ models:
     cost: "high"
     speed: "normal"
 
-  claude-sonnet:
+  gpt-4o-mini:
+    name: "GPT-4o Mini"
+    base_url: "https://api.openai.com/v1"
+    api_key: "sk-your-openai-key"
+    model: "gpt-4o-mini"
+    tier: "flash"
+    multimodal: true
+    cost: "low"
+    speed: "fast"
+
+  gpt-4.1:
+    name: "GPT-4.1"
+    base_url: "https://api.openai.com/v1"
+    api_key: "sk-your-openai-key"
+    model: "gpt-4.1"
+    tier: "pro"
+    multimodal: true
+    cost: "high"
+    speed: "normal"
+
+  o4-mini:
+    name: "o4-mini"
+    base_url: "https://api.openai.com/v1"
+    api_key: "sk-your-openai-key"
+    model: "o4-mini"
+    tier: "pro"
+    multimodal: true
+    cost: "medium"
+    speed: "fast"
+
+  # ────────────────────────────────────────────────────────────
+  # Anthropic Claude — api.anthropic.com
+  # 注册: https://console.anthropic.com/
+  # ────────────────────────────────────────────────────────────
+
+  claude-opus-4:
+    name: "Claude Opus 4"
+    base_url: "https://api.anthropic.com/v1"
+    api_key: "sk-ant-your-anthropic-key"
+    model: "claude-opus-4-20250514"
+    tier: "pro"
+    multimodal: true
+    cost: "high"
+    speed: "normal"
+
+  claude-sonnet-4:
     name: "Claude Sonnet 4"
     base_url: "https://api.anthropic.com/v1"
     api_key: "sk-ant-your-anthropic-key"
@@ -65,15 +89,65 @@ models:
     cost: "high"
     speed: "normal"
 
-  gemini-pro:
+  claude-haiku-3.5:
+    name: "Claude 3.5 Haiku"
+    base_url: "https://api.anthropic.com/v1"
+    api_key: "sk-ant-your-anthropic-key"
+    model: "claude-3-5-haiku-latest"
+    tier: "flash"
+    multimodal: true
+    cost: "low"
+    speed: "fast"
+
+  # ────────────────────────────────────────────────────────────
+  # Google Gemini — ai.google.dev
+  # 注册: https://aistudio.google.com/apikey
+  # ────────────────────────────────────────────────────────────
+
+  gemini-2.5-pro:
     name: "Gemini 2.5 Pro"
     base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
-    api_key: "your-gemini-key"
-    model: "gemini-2.5-pro"
+    api_key: "your-gemini-api-key"
+    model: "gemini-2.5-pro-exp-03-25"
     tier: "pro"
     multimodal: true
+    cost: "medium"
+    speed: "normal"
+
+  gemini-2.5-flash:
+    name: "Gemini 2.5 Flash"
+    base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
+    api_key: "your-gemini-api-key"
+    model: "gemini-2.5-flash"
+    tier: "flash"
+    multimodal: true
+    cost: "low"
+    speed: "fast"
+
+  # ────────────────────────────────────────────────────────────
+  # DeepSeek — api.deepseek.com
+  # 注册: https://platform.deepseek.com/api_keys
+  # ────────────────────────────────────────────────────────────
+
+  deepseek-v4-pro:
+    name: "DeepSeek V4 Pro"
+    base_url: "https://api.deepseek.com/v1"
+    api_key: "sk-your-deepseek-key"
+    model: "deepseek-v4-pro"
+    tier: "pro"
+    multimodal: false
     cost: "high"
     speed: "normal"
+
+  deepseek-v4-flash:
+    name: "DeepSeek V4 Flash"
+    base_url: "https://api.deepseek.com/v1"
+    api_key: "sk-your-deepseek-key"
+    model: "deepseek-v4-flash"
+    tier: "flash"
+    multimodal: false
+    cost: "low"
+    speed: "fast"
 
   deepseek-v3:
     name: "DeepSeek V3"
@@ -85,14 +159,510 @@ models:
     cost: "medium"
     speed: "normal"
 
-# ── Fallback chain (optional) ──
-# When a model fails or returns poor output, try the next in order.
-# If not specified, auto-built from model tiers.
+  deepseek-r1:
+    name: "DeepSeek R1"
+    base_url: "https://api.deepseek.com/v1"
+    api_key: "sk-your-deepseek-key"
+    model: "deepseek-reasoner"
+    tier: "pro"
+    multimodal: false
+    cost: "medium"
+    speed: "slow"
+
+  # ────────────────────────────────────────────────────────────
+  # xAI Grok — api.x.ai
+  # 注册: https://x.ai/api
+  # ────────────────────────────────────────────────────────────
+
+  grok-4:
+    name: "Grok 4"
+    base_url: "https://api.x.ai/v1"
+    api_key: "xai-your-grok-key"
+    model: "grok-4"
+    tier: "pro"
+    multimodal: true
+    cost: "high"
+    speed: "normal"
+
+  grok-4-fast:
+    name: "Grok 4 Fast"
+    base_url: "https://api.x.ai/v1"
+    api_key: "xai-your-grok-key"
+    model: "grok-4-fast"
+    tier: "flash"
+    multimodal: true
+    cost: "low"
+    speed: "fast"
+
+  # ────────────────────────────────────────────────────────────
+  # Meta Llama 4 — via Together AI / Groq / Fireworks
+  # Together: https://api.together.xyz | Groq: https://console.groq.com
+  # ────────────────────────────────────────────────────────────
+
+  llama-4-maverick:
+    name: "Llama 4 Maverick"
+    base_url: "https://api.together.xyz/v1"
+    api_key: "your-together-api-key"
+    model: "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8"
+    tier: "pro"
+    multimodal: true
+    cost: "low"
+    speed: "fast"
+
+  llama-4-scout:
+    name: "Llama 4 Scout"
+    base_url: "https://api.together.xyz/v1"
+    api_key: "your-together-api-key"
+    model: "meta-llama/Llama-4-Scout-17B-16E-Instruct"
+    tier: "flash"
+    multimodal: true
+    cost: "low"
+    speed: "fast"
+
+  # ────────────────────────────────────────────────────────────
+  # Mistral — api.mistral.ai
+  # 注册: https://console.mistral.ai/
+  # ────────────────────────────────────────────────────────────
+
+  mistral-large:
+    name: "Mistral Large 2"
+    base_url: "https://api.mistral.ai/v1"
+    api_key: "your-mistral-api-key"
+    model: "mistral-large-latest"
+    tier: "pro"
+    multimodal: true
+    cost: "medium"
+    speed: "normal"
+
+  mistral-small:
+    name: "Mistral Small"
+    base_url: "https://api.mistral.ai/v1"
+    api_key: "your-mistral-api-key"
+    model: "mistral-small-latest"
+    tier: "flash"
+    multimodal: false
+    cost: "low"
+    speed: "fast"
+
+  codestral:
+    name: "Codestral"
+    base_url: "https://api.mistral.ai/v1"
+    api_key: "your-mistral-api-key"
+    model: "codestral-latest"
+    tier: "pro"
+    multimodal: false
+    cost: "medium"
+    speed: "normal"
+
+  # ────────────────────────────────────────────────────────────
+  # Alibaba Qwen — 通义千问 (DashScope)
+  # 注册: https://dashscope.console.aliyun.com/
+  # ────────────────────────────────────────────────────────────
+
+  qwen3-max:
+    name: "Qwen3 Max"
+    base_url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+    api_key: "sk-your-dashscope-key"
+    model: "qwen3-max"
+    tier: "pro"
+    multimodal: true
+    cost: "medium"
+    speed: "normal"
+
+  qwen3-plus:
+    name: "Qwen3 Plus"
+    base_url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+    api_key: "sk-your-dashscope-key"
+    model: "qwen3-plus"
+    tier: "pro"
+    multimodal: true
+    cost: "medium"
+    speed: "normal"
+
+  qwen3-turbo:
+    name: "Qwen3 Turbo"
+    base_url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+    api_key: "sk-your-dashscope-key"
+    model: "qwen3-turbo"
+    tier: "flash"
+    multimodal: false
+    cost: "low"
+    speed: "fast"
+
+  qwen2.5-vl:
+    name: "Qwen2.5 VL (视觉)"
+    base_url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+    api_key: "sk-your-dashscope-key"
+    model: "qwen2.5-vl-72b-instruct"
+    tier: "pro"
+    multimodal: true
+    cost: "medium"
+    speed: "normal"
+
+  # ────────────────────────────────────────────────────────────
+  # Zhipu GLM — 智谱清言
+  # 注册: https://open.bigmodel.cn/
+  # ────────────────────────────────────────────────────────────
+
+  glm-5.2:
+    name: "GLM-5.2"
+    base_url: "https://open.bigmodel.cn/api/paas/v4"
+    api_key: "your-zhipu-api-key"
+    model: "glm-5.2"
+    tier: "pro"
+    multimodal: true
+    cost: "medium"
+    speed: "normal"
+
+  glm-5.2-flash:
+    name: "GLM-5.2 Flash"
+    base_url: "https://open.bigmodel.cn/api/paas/v4"
+    api_key: "your-zhipu-api-key"
+    model: "glm-5.2-flash"
+    tier: "flash"
+    multimodal: true
+    cost: "low"
+    speed: "fast"
+
+  # ────────────────────────────────────────────────────────────
+  # Moonshot Kimi — 月之暗面
+  # 注册: https://platform.moonshot.cn/
+  # ────────────────────────────────────────────────────────────
+
+  kimi-k3:
+    name: "Kimi K3"
+    base_url: "https://api.moonshot.cn/v1"
+    api_key: "sk-your-kimi-key"
+    model: "kimi-k3"
+    tier: "pro"
+    multimodal: true
+    cost: "medium"
+    speed: "normal"
+
+  kimi-k2.6:
+    name: "Kimi K2.6"
+    base_url: "https://api.moonshot.cn/v1"
+    api_key: "sk-your-kimi-key"
+    model: "kimi-k2.6"
+    tier: "pro"
+    multimodal: true
+    cost: "medium"
+    speed: "normal"
+
+  # ────────────────────────────────────────────────────────────
+  # ByteDance Doubao — 豆包 (Volcano Ark)
+  # 注册: https://console.volcengine.com/ark
+  # ────────────────────────────────────────────────────────────
+
+  doubao-seed-2.1-pro:
+    name: "豆包 Seed 2.1 Pro"
+    base_url: "https://ark.cn-beijing.volces.com/api/v3"
+    api_key: "your-volcano-ark-key"
+    model: "doubao-seed-2-1-pro-260628"
+    tier: "pro"
+    multimodal: true
+    cost: "medium"
+    speed: "normal"
+
+  doubao-seed-2.1-lite:
+    name: "豆包 Seed 2.1 Lite"
+    base_url: "https://ark.cn-beijing.volces.com/api/v3"
+    api_key: "your-volcano-ark-key"
+    model: "doubao-seed-2-1-lite-260628"
+    tier: "flash"
+    multimodal: true
+    cost: "low"
+    speed: "fast"
+
+  # ────────────────────────────────────────────────────────────
+  # MiniMax — 稀宇科技
+  # 注册: https://platform.minimax.chat/
+  # ────────────────────────────────────────────────────────────
+
+  minimax-m2.7:
+    name: "MiniMax M2.7"
+    base_url: "https://api.minimax.chat/v1"
+    api_key: "your-minimax-key"
+    model: "minimax-m2.7"
+    tier: "pro"
+    multimodal: true
+    cost: "medium"
+    speed: "normal"
+
+  minimax-m2.7-fast:
+    name: "MiniMax M2.7 Fast"
+    base_url: "https://api.minimax.chat/v1"
+    api_key: "your-minimax-key"
+    model: "minimax-m2.7-fast"
+    tier: "flash"
+    multimodal: false
+    cost: "low"
+    speed: "fast"
+
+  # ────────────────────────────────────────────────────────────
+  # StepFun — 阶跃星辰
+  # 注册: https://platform.stepfun.com/
+  # ────────────────────────────────────────────────────────────
+
+  step-3-max:
+    name: "Step-3 Max"
+    base_url: "https://api.stepfun.com/v1"
+    api_key: "your-stepfun-key"
+    model: "step-3-max"
+    tier: "pro"
+    multimodal: true
+    cost: "medium"
+    speed: "normal"
+
+  step-3-flash:
+    name: "Step-3 Flash"
+    base_url: "https://api.stepfun.com/v1"
+    api_key: "your-stepfun-key"
+    model: "step-3-flash"
+    tier: "flash"
+    multimodal: true
+    cost: "low"
+    speed: "fast"
+
+  # ────────────────────────────────────────────────────────────
+  # Cohere — api.cohere.ai
+  # 注册: https://dashboard.cohere.com/
+  # ────────────────────────────────────────────────────────────
+
+  command-r-plus:
+    name: "Command R+"
+    base_url: "https://api.cohere.ai/v1"
+    api_key: "your-cohere-key"
+    model: "command-r-plus"
+    tier: "pro"
+    multimodal: false
+    cost: "medium"
+    speed: "normal"
+
+  command-r:
+    name: "Command R"
+    base_url: "https://api.cohere.ai/v1"
+    api_key: "your-cohere-key"
+    model: "command-r"
+    tier: "flash"
+    multimodal: false
+    cost: "low"
+    speed: "fast"
+
+  # ────────────────────────────────────────────────────────────
+  # Amazon Bedrock / Nova — via OpenRouter or direct
+  # ────────────────────────────────────────────────────────────
+
+  amazon-nova-pro:
+    name: "Amazon Nova Pro"
+    base_url: "https://openrouter.ai/api/v1"
+    api_key: "sk-or-your-openrouter-key"
+    model: "amazon/nova-pro-v1"
+    tier: "pro"
+    multimodal: true
+    cost: "medium"
+    speed: "normal"
+
+  amazon-nova-lite:
+    name: "Amazon Nova Lite"
+    base_url: "https://openrouter.ai/api/v1"
+    api_key: "sk-or-your-openrouter-key"
+    model: "amazon/nova-lite-v1"
+    tier: "flash"
+    multimodal: true
+    cost: "low"
+    speed: "fast"
+
+  # ────────────────────────────────────────────────────────────
+  # NVIDIA Nemotron — build.nvidia.com
+  # ────────────────────────────────────────────────────────────
+
+  nemotron-4:
+    name: "Nemotron 4"
+    base_url: "https://integrate.api.nvidia.com/v1"
+    api_key: "nvapi-your-nvidia-key"
+    model: "nvidia/nemotron-4-340b-instruct"
+    tier: "pro"
+    multimodal: false
+    cost: "medium"
+    speed: "normal"
+
+  # ────────────────────────────────────────────────────────────
+  # AI21 Jamba — api.ai21.com
+  # ────────────────────────────────────────────────────────────
+
+  jamba-2:
+    name: "Jamba 2"
+    base_url: "https://api.ai21.com/studio/v1"
+    api_key: "your-ai21-key"
+    model: "jamba-2"
+    tier: "pro"
+    multimodal: false
+    cost: "medium"
+    speed: "normal"
+
+  # ────────────────────────────────────────────────────────────
+  # 聚合网关 / Unified Gateways
+  # 一个 Key 访问所有模型 / One key, all models
+  # ────────────────────────────────────────────────────────────
+
+  # --- OpenRouter (openrouter.ai) ---
+  # 注册: https://openrouter.ai/keys
+  # 支持 300+ 模型，OpenAI 兼容接口
+
+  openrouter-gpt-4o:
+    name: "GPT-4o (via OpenRouter)"
+    base_url: "https://openrouter.ai/api/v1"
+    api_key: "sk-or-your-openrouter-key"
+    model: "openai/gpt-4o"
+    tier: "pro"
+    multimodal: true
+    cost: "high"
+    speed: "normal"
+
+  openrouter-claude-sonnet:
+    name: "Claude Sonnet 4 (via OpenRouter)"
+    base_url: "https://openrouter.ai/api/v1"
+    api_key: "sk-or-your-openrouter-key"
+    model: "anthropic/claude-sonnet-4"
+    tier: "pro"
+    multimodal: true
+    cost: "high"
+    speed: "normal"
+
+  openrouter-gemini-flash:
+    name: "Gemini 2.5 Flash (via OpenRouter)"
+    base_url: "https://openrouter.ai/api/v1"
+    api_key: "sk-or-your-openrouter-key"
+    model: "google/gemini-2.5-flash"
+    tier: "flash"
+    multimodal: true
+    cost: "low"
+    speed: "fast"
+
+  openrouter-deepseek-v4-pro:
+    name: "DeepSeek V4 Pro (via OpenRouter)"
+    base_url: "https://openrouter.ai/api/v1"
+    api_key: "sk-or-your-openrouter-key"
+    model: "deepseek/deepseek-v4-pro"
+    tier: "pro"
+    multimodal: false
+    cost: "high"
+    speed: "normal"
+
+  openrouter-qwen3-max:
+    name: "Qwen3 Max (via OpenRouter)"
+    base_url: "https://openrouter.ai/api/v1"
+    api_key: "sk-or-your-openrouter-key"
+    model: "qwen/qwen3-max"
+    tier: "pro"
+    multimodal: true
+    cost: "medium"
+    speed: "normal"
+
+  # --- SiliconFlow (siliconflow.cn) 国内聚合网关 ---
+  # 注册: https://siliconflow.cn/
+  # 国产模型一站式访问
+
+  siliconflow-deepseek-v4:
+    name: "DeepSeek V4 Pro (via SiliconFlow)"
+    base_url: "https://api.siliconflow.cn/v1"
+    api_key: "sk-your-siliconflow-key"
+    model: "deepseek-ai/DeepSeek-V4-Pro"
+    tier: "pro"
+    multimodal: false
+    cost: "high"
+    speed: "normal"
+
+  siliconflow-qwen3-max:
+    name: "Qwen3 Max (via SiliconFlow)"
+    base_url: "https://api.siliconflow.cn/v1"
+    api_key: "sk-your-siliconflow-key"
+    model: "Qwen/Qwen3-Max"
+    tier: "pro"
+    multimodal: true
+    cost: "medium"
+    speed: "normal"
+
+  siliconflow-glm-5.2:
+    name: "GLM-5.2 (via SiliconFlow)"
+    base_url: "https://api.siliconflow.cn/v1"
+    api_key: "sk-your-siliconflow-key"
+    model: "THUDM/glm-5.2"
+    tier: "pro"
+    multimodal: true
+    cost: "medium"
+    speed: "normal"
+
+  # --- Groq (groq.com) 超快推理 ---
+  # 注册: https://console.groq.com/
+
+  groq-llama-4:
+    name: "Llama 4 Maverick (via Groq)"
+    base_url: "https://api.groq.com/openai/v1"
+    api_key: "gsk_your-groq-key"
+    model: "meta-llama/llama-4-maverick-17b-128e-instruct"
+    tier: "pro"
+    multimodal: false
+    cost: "low"
+    speed: "fast"
+
+  groq-qwen3:
+    name: "Qwen3 Turbo (via Groq)"
+    base_url: "https://api.groq.com/openai/v1"
+    api_key: "gsk_your-groq-key"
+    model: "qwen-qwen3-turbo"
+    tier: "flash"
+    multimodal: false
+    cost: "low"
+    speed: "fast"
+
+  # --- Fireworks AI (fireworks.ai) ---
+  # 注册: https://fireworks.ai/
+
+  fireworks-mixtral:
+    name: "Mixtral 8x22B (via Fireworks)"
+    base_url: "https://api.fireworks.ai/inference/v1"
+    api_key: "your-fireworks-key"
+    model: "accounts/fireworks/models/mixtral-8x22b-instruct"
+    tier: "pro"
+    multimodal: false
+    cost: "low"
+    speed: "fast"
+
+
+# ═══════════════════════════════════════════════════════════
+# 回退链 / Fallback Chain
+# 推荐配置：按 provider 分组，同 provider 内优先回退
+# ═══════════════════════════════════════════════════════════
+
 fallback_chain:
-  gpt-4o-mini: ["gpt-4o", "claude-sonnet"]
-  gpt-4o: ["claude-sonnet", "gemini-pro"]
-  claude-haiku: ["claude-sonnet", "gpt-4o"]
-  claude-sonnet: ["gpt-4o"]
-  gemini-flash: ["gemini-pro", "gpt-4o"]
-  gemini-pro: ["gpt-4o", "claude-sonnet"]
-  deepseek-v3: ["gpt-4o", "claude-sonnet"]
+  gpt-4o-mini:          ["gpt-4o", "claude-sonnet-4"]
+  gpt-4o:               ["claude-opus-4", "gemini-2.5-pro"]
+  gpt-4.1:              ["gpt-4o", "claude-sonnet-4"]
+  o4-mini:              ["gpt-4o", "deepseek-v4-pro"]
+  claude-opus-4:        ["gpt-4o", "gemini-2.5-pro"]
+  claude-sonnet-4:      ["claude-opus-4", "gpt-4o"]
+  claude-haiku-3.5:     ["claude-sonnet-4", "gpt-4o-mini"]
+  gemini-2.5-pro:       ["gpt-4o", "claude-sonnet-4"]
+  gemini-2.5-flash:     ["gemini-2.5-pro", "gpt-4o"]
+  deepseek-v4-pro:      ["deepseek-v4-flash", "claude-sonnet-4"]
+  deepseek-v4-flash:    ["deepseek-v4-pro", "gpt-4o"]
+  deepseek-v3:          ["deepseek-v4-pro", "qwen3-max"]
+  grok-4:               ["gpt-4o", "claude-sonnet-4"]
+  qwen3-max:            ["deepseek-v4-pro", "glm-5.2"]
+  glm-5.2:              ["qwen3-max", "deepseek-v4-pro"]
+  kimi-k3:              ["deepseek-v4-pro", "qwen3-max"]
+  doubao-seed-2.1-pro:  ["deepseek-v4-pro", "qwen3-max"]
+  minimax-m2.7:         ["deepseek-v4-pro", "qwen3-max"]
+  step-3-max:           ["deepseek-v4-pro", "qwen3-max"]
+  mistral-large:        ["gpt-4o", "claude-sonnet-4"]
+  llama-4-maverick:     ["gpt-4o", "claude-sonnet-4"]
+  openrouter-gpt-4o:    ["openrouter-claude-sonnet", "openrouter-gemini-flash"]
+  openrouter-deepseek-v4-pro: ["openrouter-gpt-4o", "openrouter-qwen3-max"]
+
+
+# ═══════════════════════════════════════════════════════════
+# 统计 / Stats
+# 总计: 50+ 模型 | 16 家提供商 | 5 个聚合网关
+# ═══════════════════════════════════════════════════════════

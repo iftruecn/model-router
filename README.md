@@ -17,6 +17,9 @@
 
 ---
 
+> 🆕 **50+ LLMs pre-configured!** Check `config.example.yaml` — pick your models, add API keys, done.
+> 🆕 **50+ 大模型预配置！** 查看 `config.example.yaml` — 选模型、填 Key、即用。
+
 ## English
 
 ### ✨ Features
