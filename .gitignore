@@ -9,3 +9,4 @@ venv/
 Thumbs.db
 config.yaml
 .git-rewrite/
+data/

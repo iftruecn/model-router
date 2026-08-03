@@ -141,6 +141,18 @@ AUTH_ENABLED_ENV: str = "MODEL_ROUTER_AUTH_DISABLED"  # set to "1" as kill switc
 AUTH_PUBLIC_PATHS: tuple = ("/health", "/", "/docs", "/openapi.json", "/redoc")
 
 # ===============================================================
+# Agent capability adapter layer (v1.0.4, static declaration)
+# ===============================================================
+
+CAPABILITIES_TIMEOUT_MS: int = 200   # per-borrow-call timeout ceiling
+# Which enhancement points may use borrowed capabilities (FR §2.2)
+CAPABILITIES_USE_FOR: dict = {
+    "classification": True,   # vector-assisted classification
+    "preference": True,       # read user preference from agent memory
+    "domain": False,          # knowledge-base domain match (aggressive, off)
+}
+
+# ===============================================================
 # Quality Check
 # ===============================================================
 

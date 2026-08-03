@@ -148,6 +148,23 @@ DOMAIN_PATTERNS = [
 ]
 
 
+# ===============================================================
+# System Prompt Signals (v1.0.4, multi-signal fusion)
+# System prompts are a MORE STABLE signal than single user messages:
+# an agent configured for coding keeps saying so on every request.
+# Weights are intentionally lower than user-text patterns (0.4 base).
+# ===============================================================
+
+SYSTEM_SIGNALS = [
+    Pattern(r'(coding|code review|program|debug|refactor|编程|代码|调试|重构)', "coding", 0.4, "sys_coding"),
+    Pattern(r'(analy[sz]e|research|analysis|investigate|audit|分析|研究|调研|审计)', "reasoning", 0.4, "sys_analysis"),
+    Pattern(r'(translat|interpret|翻译|翻訳|번역|traduc)', "translation", 0.4, "sys_translation"),
+    Pattern(r'(math|calcul|formul|数学|计算|公式|方程)', "math", 0.4, "sys_math"),
+    Pattern(r'(creative|storytelling|copywriting|writing assistant|写作|创意|文案)', "creative", 0.4, "sys_creative"),
+    Pattern(r'(vision|image analysis|ocr|图像|看图|识别图片)', "vision", 0.4, "sys_vision"),
+]
+
+
 class DomainClassifier:
     """
     Multi-dimensional domain classifier.
@@ -206,6 +223,21 @@ class DomainClassifier:
                 # Auto-enable vision requirement
                 if pat.domain == "vision" and pat.weight >= 0.8:
                     features.requires_vision = True
+
+        # 2b. System prompt signals (v1.0.4 multi-signal fusion):
+        # scan system messages for stable context hints and fold them in.
+        system_text = self._extract_system_text(messages)
+        if system_text:
+            for sig in SYSTEM_SIGNALS:
+                if sig.matches(system_text):
+                    features.domain_scores[sig.domain] = (
+                        features.domain_scores.get(sig.domain, 0.0) + sig.weight
+                    )
+                    features.matched_patterns.append(
+                        f"{sig.domain}:{sig.description}({sig.weight})"
+                    )
+                    if sig.domain == "vision":
+                        features.requires_vision = True
 
         # 3. Context length boost → reasoning (longer = more complex)
         if msg_count > CLASSIFIER_LONG_CONTEXT_MSG_COUNT:
@@ -287,6 +319,18 @@ class DomainClassifier:
                     if isinstance(part, dict) and part.get("type") == "image_url":
                         return True
         return False
+
+    @staticmethod
+    def _extract_system_text(messages: list) -> str:
+        """Concatenate system message texts (lowercased) for signal scan."""
+        parts = []
+        for msg in messages:
+            if not isinstance(msg, dict) or msg.get("role") != "system":
+                continue
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                parts.append(content)
+        return " ".join(parts).lower().strip()
 
 
 # Global singleton instance

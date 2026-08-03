@@ -15,6 +15,9 @@ Endpoints:
     POST /admin/feedback/{rid}   — Explicit feedback for a request (v1.0.2)
     GET  /admin/preset           — Current routing preset (v1.0.2)
     PUT  /admin/preset/{name}    — Set routing preset (v1.0.2)
+    GET  /admin/evaluate         — Offline evaluation report (v1.0.4)
+    GET  /admin/capabilities     — Agent capability declarations (v1.0.4)
+    PUT  /admin/capabilities     — Declare agent capabilities (v1.0.4)
 """
 
 import logging
@@ -24,6 +27,8 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from model_router.config.defaults import ROUTING_PRESETS
+from model_router.core.capabilities import capability_registry
+from model_router.core.evaluator import offline_evaluator
 from model_router.core.learner import diversity_guard, learner
 from model_router.core.memory import memory_store
 from model_router.core.router import smart_router
@@ -350,3 +355,59 @@ async def set_preset(name: str, lang: str = "en") -> dict:
             detail=f"Unknown preset '{name}'. Available: {list(ROUTING_PRESETS.keys())}",
         )
     return {"preset": smart_router.preset, "message": f"Routing preset set to '{name}'"}
+
+
+# ------------------------------------------------------------------
+# Offline evaluation endpoints (v1.0.4)
+# ------------------------------------------------------------------
+
+@router.get("/evaluate")
+async def evaluate_learning(limit: int = 1000) -> dict:
+    """
+    Offline evaluation report: replay the request log and quantify
+    how much self-learning improved routing (read-only, no mutation).
+    """
+    return offline_evaluator.evaluate(limit=limit)
+
+
+# ------------------------------------------------------------------
+# Agent capability declaration endpoints (v1.0.4)
+# ------------------------------------------------------------------
+
+class CapabilitiesRequest(BaseModel):
+    """Request body declaring what the host agent can lend us."""
+    capabilities: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Map of capability name -> {type, endpoint, path, ...}; "
+                    "send an empty map to retract all declarations",
+        examples=[{
+            "vector_db": {"type": "chroma", "endpoint": "http://localhost:8000"},
+            "memory": {"type": "markdown_files", "path": "F:/AI/knowledge"},
+        }],
+    )
+
+
+@router.get("/capabilities")
+async def get_capabilities() -> dict:
+    """
+    Show the adapter-layer status: which agent capabilities are declared
+    and which enhancement points are enabled (read-only borrowing).
+    """
+    return capability_registry.get_status()
+
+
+@router.put("/capabilities")
+async def put_capabilities(req: CapabilitiesRequest) -> dict:
+    """
+    Declare (or replace) the host agent's capabilities. Static declaration
+    only in v1.0.4 — actual borrowing hooks arrive in v1.1+.
+
+    Sending an empty capabilities map retracts all declarations.
+    """
+    declared = capability_registry.declare(req.capabilities)
+    logger.info("Capabilities declared: %s", declared)
+    return {
+        "declared": declared,
+        "count": len(declared),
+        "status": capability_registry.get_status(),
+    }
