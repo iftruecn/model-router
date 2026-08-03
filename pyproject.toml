@@ -53,7 +53,7 @@ dev = [
 # Security auditing tools
 security = [
     "pip-audit>=2.6.0",              # checks installed packages against known CVEs
-    "safety>=3.0.0",                 # another CVE checker for Python deps
+    "safety>=3.8.1",                 # another CVE checker for Python deps
     "bandit>=1.7.0",                 # static security analysis for Python code
 ]
 
