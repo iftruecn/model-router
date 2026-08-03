@@ -7,7 +7,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue)](https://python.org)
-[![Author: iftrue-hermes](https://img.shields.io/badge/author-iftrue--hermes-orange)](https://github.com/iftrue)
+[![Author: iftrue-hermes](https://img.shields.io/badge/author-iftrue--hermes-orange)](https://github.com/iftruecn)
 
 ---
 
@@ -114,7 +114,7 @@ Supports `${ENV_VAR}` substitution for API keys. / 支持 `${环境变量}` 引�
 
 ## 🤝 Integrations / 集成
 
-- **Hermes Agent**: `npx skills add iftrue/model-router`
+- **Hermes Agent**: `npx skills add iftruecn/model-router`
 - **Claude Code / Codex**: point `--api-base` to `http://127.0.0.1:6060/v1`
 - **Any OpenAI client**: use as custom endpoint / 作为自定义端点使用
 
