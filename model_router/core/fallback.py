@@ -2,6 +2,10 @@
 Fallback chain management for Model Router.
 
 Handles model fallback logic with configurable limits and strategies.
+
+v1.0.3: semantic trigger policy — HTTP status alone is not a failure
+signal (LiteLLM issue #21377). ``should_fallback_on_error()`` decides
+per error category whether the chain should walk on.
 """
 
 import logging
@@ -10,6 +14,34 @@ from typing import Optional
 from model_router.config.defaults import DEFAULT_MAX_FALLBACK_ATTEMPTS
 
 logger = logging.getLogger(__name__)
+
+
+def should_fallback_on_error(
+    status_code: Optional[int],
+    is_timeout: bool = False,
+) -> tuple[bool, str]:
+    """
+    Decide whether an API error should trigger the fallback chain.
+
+    Returns (fallback?, category). Categories:
+        infra       5xx / timeout / connection — always fallback
+        client      400/401/403/404* — never fallback (retrying another
+                    model cannot fix request/auth problems)
+        rate_limit  429 — fallback (another model may have headroom)
+        unknown     no status / unexpected — fallback (safe default)
+
+    * 404 usually means a bad model id / endpoint — switching models with
+      the same broken config won't help, so it is treated as client error.
+    """
+    if is_timeout or status_code is None:
+        return True, "timeout" if is_timeout else "unknown"
+    if status_code == 429:
+        return True, "rate_limit"
+    if status_code >= 500:
+        return True, "infra"
+    if 400 <= status_code < 500:
+        return False, "client"
+    return True, "unknown"
 
 
 class FallbackManager:

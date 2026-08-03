@@ -10,8 +10,13 @@ Usage:
     model-router setup --list       # Show current config
     model-router setup --lang zh    # Force Chinese
     python -m model_router serve    # Same as above
+
+Environment overrides (v1.0.3, needed for Docker):
+    MODEL_ROUTER_HOST       Bind host (default 127.0.0.1; use 0.0.0.0 in containers)
+    MODEL_ROUTER_PORT       Bind port (default 6060)
 """
 
+import os
 import sys
 
 from model_router import __version__
@@ -19,8 +24,18 @@ from model_router.config.defaults import DEFAULT_HOST, DEFAULT_PORT
 from model_router.locales.i18n import init_language, t, get_language
 
 
+def _resolve_host_port() -> tuple[str, int]:
+    """Resolve bind host/port with environment overrides (Docker support)."""
+    host = os.environ.get("MODEL_ROUTER_HOST", DEFAULT_HOST)
+    try:
+        port = int(os.environ.get("MODEL_ROUTER_PORT", DEFAULT_PORT))
+    except ValueError:
+        port = DEFAULT_PORT
+    return host, port
+
+
 def _print_banner() -> None:
-    """Print startup banner."""
+    """Print startup banners."""
     print("=" * 60)
     print(f"  Model Router v{__version__} — MOA Middleware")
     print("  by iftrue-hermes / MIT License")
@@ -31,16 +46,19 @@ def _cmd_serve() -> None:
     """Start the Model Router server."""
     import uvicorn
 
+    host, port = _resolve_host_port()
+
     _print_banner()
-    print(f"  Listening: http://{DEFAULT_HOST}:{DEFAULT_PORT}")
-    print(f"  API Docs:  http://{DEFAULT_HOST}:{DEFAULT_PORT}/docs")
-    print(f"  Admin API: http://{DEFAULT_HOST}:{DEFAULT_PORT}/admin/models")
+    print(f"  Listening: http://{host}:{port}")
+    print(f"  API Docs:  http://{host}:{port}/docs")
+    print(f"  Dashboard: http://{host}:{port}/dashboard")
+    print(f"  Admin API: http://{host}:{port}/admin/models")
     print("=" * 60)
 
     uvicorn.run(
         "model_router.app:app",
-        host=DEFAULT_HOST,
-        port=DEFAULT_PORT,
+        host=host,
+        port=port,
         log_level="warning",
     )
 
@@ -67,12 +85,16 @@ def _print_help() -> None:
     print(f"    model-router setup --quick    {t('help.quick_desc')}")
     print(f"    model-router setup --list     {t('help.list_desc')}")
     print(f"    model-router setup -c PATH    {t('help.config_desc')}")
-    print(f"    model-router setup --lang XX  Language (en/zh/ja/ko/es/fr/de)")
+    print("    model-router setup --lang XX  Language (en/zh/ja/ko/es/fr/de)")
     print()
-    print(f"  Examples:")
-    print(f"    model-router                  # Start server")
-    print(f"    model-router setup            # Configure models")
-    print(f"    model-router setup --lang zh  # 中文配置向导")
+    print("  Environment (Docker):")
+    print("    MODEL_ROUTER_HOST=0.0.0.0  MODEL_ROUTER_PORT=6060")
+    print()
+    print("  Examples:")
+    print("    model-router                  # Start server")
+    print("    model-router setup            # Configure models")
+    print("    model-router setup --lang zh  # 中文配置向导")
+    print("    docker compose up -d          # One-command deployment")
     print()
 
 

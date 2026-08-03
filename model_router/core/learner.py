@@ -20,10 +20,14 @@ All state persists through core.memory.MemoryStore.
 import logging
 import math
 import random
+from collections import deque
 from dataclasses import dataclass
 from typing import Optional
 
 from model_router.config.defaults import (
+    DIVERSITY_DOMINANCE_THRESHOLD,
+    DIVERSITY_EXPLORE_RATE,
+    DIVERSITY_WINDOW,
     LEARNER_BASE_REWARD,
     LEARNER_DEV_THRESHOLD,
     LEARNER_EWMA_ALPHA_BASE,
@@ -293,5 +297,95 @@ class Learner:
         }
 
 
+class DiversityGuard:
+    """
+    Anti-collapse monitor for learned routing (v1.0.3).
+
+    Per arXiv "When Routing Collapses" (2026-02): learned routers can
+    degenerate into always picking one model. Thompson Sampling + UCB
+    mitigate this theoretically, but data imbalance can still starve models.
+
+    Guard behavior:
+    - Track the last ``window`` selections per task
+    - If one model dominates (share > threshold), force exploration:
+      with probability ``explore_rate`` per request, pick a non-top model
+    """
+
+    def __init__(
+        self,
+        window: int = DIVERSITY_WINDOW,
+        dominance_threshold: float = DIVERSITY_DOMINANCE_THRESHOLD,
+        explore_rate: float = DIVERSITY_EXPLORE_RATE,
+        rng: Optional[random.Random] = None,
+    ):
+        self._window = window
+        self._threshold = dominance_threshold
+        self._explore_rate = explore_rate
+        self._rng = rng or random.Random()
+        self._history: dict[str, deque] = {}  # task -> recent model picks
+        self._forced_count = 0
+
+    def record(self, task: str, model: str) -> None:
+        """Record one routing selection."""
+        hist = self._history.setdefault(task, deque(maxlen=self._window))
+        hist.append(model)
+
+    def should_force_exploration(self, task: str) -> tuple[bool, float]:
+        """
+        Returns (force?, dominant_share).
+
+        force=True only when the window is reasonably filled AND a single
+        model dominates beyond the threshold.
+        """
+        hist = self._history.get(task)
+        if not hist or len(hist) < max(10, self._window // 10):
+            return False, 0.0
+        counts: dict[str, int] = {}
+        for m in hist:
+            counts[m] = counts.get(m, 0) + 1
+        share = max(counts.values()) / len(hist)
+        return share > self._threshold, share
+
+    def maybe_explore(self, task: str) -> bool:
+        """Roll the exploration dice when dominance is detected."""
+        force, _ = self.should_force_exploration(task)
+        if force and self._rng.random() < self._explore_rate:
+            self._forced_count += 1
+            logger.warning(
+                "Routing diversity degraded for task '%s' — forcing exploration pick",
+                task,
+            )
+            return True
+        return False
+
+    def get_stats(self, task: Optional[str] = None) -> dict:
+        """Diversity snapshot for /admin/learning."""
+        stats: dict[str, dict] = {}
+        for t, hist in self._history.items():
+            if task and t != task:
+                continue
+            counts: dict[str, int] = {}
+            for m in hist:
+                counts[m] = counts.get(m, 0) + 1
+            total = len(hist)
+            stats[t] = {
+                "window": total,
+                "unique_models": len(counts),
+                "diversity": round(len(counts) / total, 3) if total else 0.0,
+                "dominant": max(counts, key=counts.get) if counts else None,
+                "dominant_share": round(max(counts.values()) / total, 3) if total else 0.0,
+            }
+        return {
+            "window_size": self._window,
+            "dominance_threshold": self._threshold,
+            "explore_rate": self._explore_rate,
+            "forced_explorations": self._forced_count,
+            "tasks": stats,
+        }
+
+
 # Global singleton (shadow mode by default — safe first launch)
 learner = Learner()
+
+# Global diversity guard (observes all routing decisions)
+diversity_guard = DiversityGuard()

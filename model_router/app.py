@@ -1,10 +1,11 @@
 """
-FastAPI application factory for Model Router v1.0.2.
+FastAPI application factory for Model Router v1.0.3.
 
 Manages application lifecycle including:
 - Connection pool initialization/cleanup
 - Model registry initialization (enhances agent's model capabilities)
 - Persistent memory store load/save (routing learning, v1.0.2)
+- Virtual API key load/save + auth middleware (v1.0.3)
 - Logging setup
 - Request ID tracking
 - Admin API for runtime model configuration
@@ -21,6 +22,7 @@ from fastapi.responses import JSONResponse
 
 from model_router import __version__
 from model_router.config.defaults import (
+    AUTH_PUBLIC_PATHS,
     DEFAULT_HOST,
     DEFAULT_LOG_DATE_FORMAT,
     DEFAULT_LOG_FORMAT,
@@ -29,6 +31,7 @@ from model_router.config.defaults import (
     DEFAULT_REGISTRY_MODE,
     MEMORY_DEFAULT_DATA_DIR,
 )
+from model_router.core.auth import key_manager
 from model_router.core.memory import memory_store
 from model_router.providers.pool import pool
 from model_router.providers.registry import model_registry
@@ -59,8 +62,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Application lifespan manager.
 
     Handles startup and shutdown:
-    - Startup: Initialize connection pool + model registry + memory store
-    - Shutdown: Persist memory + close all connections gracefully
+    - Startup: Initialize connection pool + model registry + memory store + API keys
+    - Shutdown: Persist memory + API keys + close all connections gracefully
     """
     # Startup
     logger.info("Model Router v%s starting up...", __version__)
@@ -95,12 +98,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await memory_store.load()
     logger.info("Memory store loaded from %s", data_dir)
 
+    # 4. Load virtual API keys (v1.0.3)
+    if data_dir != key_manager.data_dir:
+        key_manager._data_dir = data_dir
+    await key_manager.load()
+    if key_manager.auth_enabled:
+        logger.info("API key auth ACTIVE (%d keys)", len(key_manager.list_keys()))
+    else:
+        logger.info("API key auth inactive (no keys configured — open access)")
+
     yield
 
     # Shutdown
     logger.info("Model Router shutting down...")
     await memory_store.save()
-    logger.info("Memory store persisted")
+    await key_manager.save()
+    logger.info("Memory store + API keys persisted")
     await pool.close()
     logger.info("Shutdown complete")
 
@@ -162,13 +175,68 @@ def create_app(
 
         return response
 
+    @app.middleware("http")
+    async def auth_middleware(request: Request, call_next):
+        """
+        Virtual API key auth (v1.0.3, P0 #3).
+
+        - Inactive while no keys are configured (zero-config by default)
+        - Public paths (health/docs/root) always pass
+        - Everything else requires ``Authorization: Bearer mr-sk-...``
+        - Valid key id is attached to request.state + usage is counted
+        """
+        if not key_manager.auth_enabled:
+            return await call_next(request)
+
+        path = request.url.path
+        if path in AUTH_PUBLIC_PATHS:
+            return await call_next(request)
+
+        auth_header = request.headers.get("Authorization", "")
+        raw_key = (
+            auth_header.removeprefix("Bearer ").strip()
+            if auth_header.startswith("Bearer ")
+            else ""
+        )
+        record = key_manager.verify(raw_key)
+        if record is None:
+            return JSONResponse(
+                {
+                    "error": {
+                        "message": "Invalid or missing API key. "
+                                   "Send 'Authorization: Bearer <your-key>'.",
+                        "type": "authentication_error",
+                        "code": "invalid_api_key",
+                    }
+                },
+                status_code=401,
+            )
+
+        request.state.key_id = record["key_id"]
+        response = await call_next(request)
+
+        # Lightweight per-key spend attribution (requests now, cost once
+        # real provider forwarding exposes per-request pricing)
+        if record["key_id"] != "__master__":
+            key_manager.record_usage(record["key_id"], estimated_cost=0.0)
+
+        return response
+
     # Register admin routes (runtime model configuration + learning)
     from model_router.api.admin import router as admin_router
     app.include_router(admin_router)
 
+    # Register virtual API key management (v1.0.3)
+    from model_router.api.keys import router as keys_router
+    app.include_router(keys_router)
+
     # Register chat completions route (routing + transparency headers)
     from model_router.api.chat import router as chat_router
     app.include_router(chat_router)
+
+    # Register cost & learning dashboard (v1.0.3)
+    from model_router.api.dashboard import router as dashboard_router
+    app.include_router(dashboard_router)
 
     @app.get("/health")
     async def health() -> dict:
@@ -186,6 +254,7 @@ def create_app(
                 ),
             },
             "memory": memory_store.get_cost_stats(),
+            "auth": {"enabled": key_manager.auth_enabled},
         }
 
     @app.get("/v1/models")
@@ -218,9 +287,11 @@ def create_app(
             "version": __version__,
             "description": "Universal multi-model routing for any OpenAI-compatible agent",
             "docs": "/docs",
+            "dashboard": "/dashboard",
             "admin": "/admin/models",
             "learning": "/admin/learning",
             "preset": "/admin/preset",
+            "keys": "/admin/keys",
         }
 
     return app

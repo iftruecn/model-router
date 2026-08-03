@@ -276,6 +276,7 @@ class MemoryStore:
 
     @staticmethod
     def _write_json(path: str, data: dict) -> None:
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         tmp_path = path + ".tmp"
         with open(tmp_path, "w", encoding="utf-8") as fh:
             json.dump(data, fh, ensure_ascii=False, indent=2)

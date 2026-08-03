@@ -121,6 +121,25 @@ LEARNER_FEEDBACK_NEGATIVE: float = -1.0  # explicit user thumbs-down
 LEARNER_LATENCY_FULL_MS: float = 10000.0  # latency >= 10s -> speed score 0
 LEARNER_BASE_REWARD: float = 0.7     # neutral cost score when pricing unknown
 
+# Routing diversity guard (v1.0.3, anti-collapse per "When Routing Collapses")
+DIVERSITY_WINDOW: int = 100          # monitor the last N selections
+DIVERSITY_DOMINANCE_THRESHOLD: float = 0.9   # one model > 90% -> degraded
+DIVERSITY_EXPLORE_RATE: float = 0.05         # force >= 5% exploration picks
+
+# ===============================================================
+# Virtual API Keys / 虚拟密钥 (v1.0.3, P0 #3)
+# ===============================================================
+
+AUTH_KEY_PREFIX: str = "mr-sk-"      # OpenAI-style recognizable prefix
+AUTH_TOKEN_BYTES: int = 24           # secrets.token_urlsafe(24) -> 32 chars
+AUTH_KEYS_FILE: str = "api_keys.json"
+AUTH_SCHEMA_VERSION: int = 1
+AUTH_MASTER_KEY_ENV: str = "MODEL_ROUTER_MASTER_KEY"
+AUTH_ENABLED_ENV: str = "MODEL_ROUTER_AUTH_DISABLED"  # set to "1" as kill switch
+
+# Paths never requiring a key (probes + interactive docs)
+AUTH_PUBLIC_PATHS: tuple = ("/health", "/", "/docs", "/openapi.json", "/redoc")
+
 # ===============================================================
 # Quality Check
 # ===============================================================

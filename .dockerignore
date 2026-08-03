@@ -1,0 +1,19 @@
+# Keep the image lean — exclude dev artifacts
+.git
+.github
+.gitignore
+tests/
+data/
+.cache/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+*.md
+!README.md
+config.yaml
+start_router.bat
+start_router.sh

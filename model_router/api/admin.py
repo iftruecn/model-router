@@ -24,7 +24,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from model_router.config.defaults import ROUTING_PRESETS
-from model_router.core.learner import learner
+from model_router.core.learner import diversity_guard, learner
 from model_router.core.memory import memory_store
 from model_router.core.router import smart_router
 from model_router.locales.i18n import t, init_language
@@ -261,11 +261,12 @@ async def learning_stats() -> dict:
     """
     Learning + cost statistics.
 
-    Shows Gaussian TS progress (shadow/active mode), tracked (task, model)
-    pairs, and quantified cost savings.
+    Shows Gaussian TS progress (shadow/active mode), routing diversity
+    guard status, tracked (task, model) pairs, and quantified cost savings.
     """
     return {
         "learning": learner.get_stats(),
+        "diversity": diversity_guard.get_stats(),
         "cost": memory_store.get_cost_stats(),
         "recent_requests": memory_store.recent_requests(limit=10),
     }

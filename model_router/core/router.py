@@ -20,6 +20,7 @@ v1.0.2 additions:
 """
 
 import logging
+import random
 import time
 from dataclasses import dataclass, field
 from typing import Optional
@@ -37,7 +38,12 @@ from model_router.config.defaults import (
     ROUTING_DEFAULT_PRESET,
     ROUTING_PRESETS,
 )
-from model_router.core.learner import Learner, learner as global_learner
+from model_router.core.learner import (
+    DiversityGuard,
+    Learner,
+    diversity_guard as global_guard,
+    learner as global_learner,
+)
 from model_router.core.memory import MemoryStore, memory_store as global_memory
 from model_router.providers.registry import ModelProfile, model_registry
 
@@ -63,6 +69,8 @@ class RoutingResult:
     preset: str = ROUTING_DEFAULT_PRESET
     estimated_cost: float = 0.0
     baseline_cost: float = 0.0
+    learned_contribution: float = 0.0  # learned score delta (v1.0.3 transparency)
+    failed_models: list = field(default_factory=list)  # fallback chain trail
 
     def to_dict(self) -> dict:
         return {
@@ -79,13 +87,25 @@ class RoutingResult:
         }
 
     def to_headers(self) -> dict:
-        """Routing transparency headers (X-Routed-To / X-Routing-Reason)."""
-        return {
+        """Routing transparency headers (v1.0.3: fallback + learned extras)."""
+        headers = {
             "X-Routed-To": self.model_key,
             "X-Routing-Reason": self.reason,
             "X-Routing-Mode": self.routing_mode,
             "X-Routing-Preset": self.preset,
         }
+        if self.failed_models:
+            # Fallback chain was walked: show abandoned models + final winner
+            headers["X-Routing-Fallback"] = "true"
+            headers["X-Routing-Failed-Models"] = ",".join(self.failed_models)
+        if self.learned_contribution:
+            headers["X-Routing-Learned"] = f"{self.learned_contribution:+.2f}"
+        return headers
+
+    def record_fallback(self, failed_models: list, final_model: str) -> None:
+        """Mark that the fallback chain walked (called by forwarding layer)."""
+        self.failed_models = list(failed_models)
+        self.model_key = final_model
 
 
 class SmartRouter:
@@ -108,6 +128,7 @@ class SmartRouter:
         preset: str = ROUTING_DEFAULT_PRESET,
         learner: Optional[Learner] = None,
         memory: Optional[MemoryStore] = None,
+        guard: Optional[DiversityGuard] = None,
     ):
         self._base_weights = (capability_weight, cost_weight, speed_weight)
         self._preset = preset if preset in ROUTING_PRESETS else ROUTING_DEFAULT_PRESET
@@ -115,6 +136,7 @@ class SmartRouter:
         self._registry = model_registry
         self._learner = learner or global_learner
         self._memory = memory or global_memory
+        self._guard = guard or global_guard
 
     # ------------------------------------------------------------------
     # Presets
@@ -297,6 +319,14 @@ class SmartRouter:
         # 6. Sort by score descending
         scored.sort(key=lambda x: x[1], reverse=True)
 
+        # 6b. Diversity guard (v1.0.3): on routing collapse, occasionally
+        # pick a non-top candidate so starved models keep gathering data.
+        explored = False
+        if len(scored) > 1 and self._guard.maybe_explore(task):
+            pick = self._rng_pick(scored[1:])
+            scored[0], pick = pick, scored[0]
+            explored = True
+
         # 7. Select best model
         if not scored:
             # Ultimate fallback: first auto model in config
@@ -311,6 +341,9 @@ class SmartRouter:
             )
 
         best_profile, best_score, best_breakdown = scored[0]
+        learned_contribution = round(
+            best_breakdown.get("learned_bonus", 0.0), 2
+        )
 
         # Build top candidates list for logging
         top_candidates = [
@@ -331,6 +364,9 @@ class SmartRouter:
         )
         self._memory.add_cost(est_cost, baseline_cost)
 
+        # 8b. Record selection in the diversity guard window
+        self._guard.record(task, best_profile.model_id)
+
         # 9. Request log (ring buffer) for feedback attribution
         if request_id:
             self._memory.append_request_log({
@@ -344,11 +380,19 @@ class SmartRouter:
                 "candidates": [p.model_id for p, _, _ in scored[:5]],
             })
 
+        # Reason: domain + matched pattern names (v1.0.3 transparency)
+        patterns = features.matched_patterns[:5]
+        reason = f"auto_domain:{task}(score={features.primary_score:.1f})"
+        if patterns:
+            reason += " patterns:" + ",".join(patterns)
+        if explored:
+            reason += " [forced-exploration]"
+
         result = RoutingResult(
             model_key=best_profile.model_id,
             model_name=best_profile.name,
             score=best_score,
-            reason=f"auto_domain:{task}(score={features.primary_score:.1f})",
+            reason=reason,
             features=features.to_dict(),
             candidates_scored=len(scored),
             top_candidates=top_candidates,
@@ -356,6 +400,7 @@ class SmartRouter:
             preset=active_preset,
             estimated_cost=round(est_cost, 6),
             baseline_cost=round(baseline_cost, 6),
+            learned_contribution=learned_contribution,
         )
 
         logger.info(
@@ -366,6 +411,11 @@ class SmartRouter:
         logger.debug("Routing result: %s", result.to_dict())
 
         return result
+
+    @staticmethod
+    def _rng_pick(scored: list):
+        """Random pick among non-top candidates (diversity exploration)."""
+        return random.choice(scored)
 
     def _score_model(
         self,
@@ -542,6 +592,7 @@ class SmartRouter:
             "auto_models": auto_count,
             "manual_models": manual_count,
             "learning": self._learner.get_stats(),
+            "diversity": self._guard.get_stats(),
             "cost": self._memory.get_cost_stats(),
         }
 

@@ -1,0 +1,18 @@
+# Model Router — one-command deployment
+# Usage: docker compose up -d
+# Then:  http://localhost:6060/docs (API), http://localhost:6060/dashboard (cost dashboard)
+services:
+  model-router:
+    build: .
+    image: model-router:latest
+    container_name: model-router
+    ports:
+      - "6060:6060"
+    volumes:
+      # Persistent memory: routing learning stats + request log survive restarts
+      - ./data:/data
+    environment:
+      - MODEL_ROUTER_DATA_DIR=/data
+      # Uncomment to move memory elsewhere:
+      # - MODEL_ROUTER_DATA_DIR=/other/path
+    restart: unless-stopped
