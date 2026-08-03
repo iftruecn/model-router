@@ -40,7 +40,7 @@ dependencies = [
 server = [
     "uvicorn>=0.30.0,<1.0.0",
     "uvloop>=0.19.0; sys_platform != 'win32'",  # uvloop not available on Windows
-    "winloop>=0.1.0; sys_platform == 'win32'",   # Windows alternative
+    "winloop>=0.6.3; sys_platform == 'win32'",   # Windows alternative
 ]
 
 # Development/testing dependencies
