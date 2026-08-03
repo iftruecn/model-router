@@ -1,27 +1,50 @@
-# Model Router 配置示例
-# 复制此文件并根据你的模型修改
+# Model Router — Configuration
+# Copy this file to config.yaml and fill in your API keys.
+#
+# Each model needs:
+#   name:        Display name
+#   base_url:    API endpoint (must be OpenAI-compatible)
+#   api_key:     Your API key
+#   model:       Model ID to pass to the API
+#   tier:        "flash" (cheap/fast) or "pro" (powerful)
+#   multimodal:  true if the model supports image input
+#   cost:        "low" / "medium" / "high" (informational only)
+#   speed:       "fast" / "normal" / "slow" (informational only)
 
 models:
-  deepseek-v4-flash:
-    name: "DeepSeek V4 Flash"
-    base_url: "https://api.deepseek.com/v1"
-    api_key: "sk-your-deepseek-key"
-    model: "deepseek-v4-flash"
-    tier: "flash"           # flash / pro
-    multimodal: false
+
+  # ── Flash tier: fast & cheap, for simple queries ──
+  gpt-4o-mini:
+    name: "GPT-4o Mini"
+    base_url: "https://api.openai.com/v1"
+    api_key: "sk-your-openai-key"
+    model: "gpt-4o-mini"
+    tier: "flash"
+    multimodal: true
     cost: "low"
     speed: "fast"
 
-  deepseek-v4-pro:
-    name: "DeepSeek V4 Pro"
-    base_url: "https://api.deepseek.com/v1"
-    api_key: "sk-your-deepseek-key"
-    model: "deepseek-v4-pro"
-    tier: "pro"
-    multimodal: false
-    cost: "high"
-    speed: "normal"
+  claude-haiku:
+    name: "Claude 3.5 Haiku"
+    base_url: "https://api.anthropic.com/v1"
+    api_key: "sk-ant-your-anthropic-key"
+    model: "claude-3-5-haiku-latest"
+    tier: "flash"
+    multimodal: true
+    cost: "low"
+    speed: "fast"
 
+  gemini-flash:
+    name: "Gemini 2.5 Flash"
+    base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
+    api_key: "your-gemini-key"
+    model: "gemini-2.5-flash"
+    tier: "flash"
+    multimodal: true
+    cost: "low"
+    speed: "fast"
+
+  # ── Pro tier: powerful, for complex tasks ──
   gpt-4o:
     name: "GPT-4o"
     base_url: "https://api.openai.com/v1"
@@ -32,8 +55,44 @@ models:
     cost: "high"
     speed: "normal"
 
-# 回退链（主模型失败 → 依次尝试）
+  claude-sonnet:
+    name: "Claude Sonnet 4"
+    base_url: "https://api.anthropic.com/v1"
+    api_key: "sk-ant-your-anthropic-key"
+    model: "claude-sonnet-4-20250514"
+    tier: "pro"
+    multimodal: true
+    cost: "high"
+    speed: "normal"
+
+  gemini-pro:
+    name: "Gemini 2.5 Pro"
+    base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
+    api_key: "your-gemini-key"
+    model: "gemini-2.5-pro"
+    tier: "pro"
+    multimodal: true
+    cost: "high"
+    speed: "normal"
+
+  deepseek-v3:
+    name: "DeepSeek V3"
+    base_url: "https://api.deepseek.com/v1"
+    api_key: "sk-your-deepseek-key"
+    model: "deepseek-chat"
+    tier: "pro"
+    multimodal: false
+    cost: "medium"
+    speed: "normal"
+
+# ── Fallback chain (optional) ──
+# When a model fails or returns poor output, try the next in order.
+# If not specified, auto-built from model tiers.
 fallback_chain:
-  deepseek-v4-flash: ["deepseek-v4-pro", "gpt-4o"]
-  deepseek-v4-pro: ["gpt-4o"]
-  gpt-4o: ["deepseek-v4-pro"]
+  gpt-4o-mini: ["gpt-4o", "claude-sonnet"]
+  gpt-4o: ["claude-sonnet", "gemini-pro"]
+  claude-haiku: ["claude-sonnet", "gpt-4o"]
+  claude-sonnet: ["gpt-4o"]
+  gemini-flash: ["gemini-pro", "gpt-4o"]
+  gemini-pro: ["gpt-4o", "claude-sonnet"]
+  deepseek-v3: ["gpt-4o", "claude-sonnet"]
