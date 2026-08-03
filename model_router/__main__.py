@@ -1,11 +1,14 @@
 """
 Entry point for Model Router CLI.
 
+Multilingual: Supports EN, ZH, JA, KO, ES, FR, DE.
+
 Usage:
     model-router serve              # Start the server (default)
     model-router setup              # Interactive setup wizard
     model-router setup --quick      # Quick auto-detect mode
     model-router setup --list       # Show current config
+    model-router setup --lang zh    # Force Chinese
     python -m model_router serve    # Same as above
 """
 
@@ -13,6 +16,7 @@ import sys
 
 from model_router import __version__
 from model_router.config.defaults import DEFAULT_HOST, DEFAULT_PORT
+from model_router.locales.i18n import init_language, t, get_language
 
 
 def _print_banner() -> None:
@@ -51,31 +55,46 @@ def _cmd_setup() -> None:
     setup_main()
 
 
+def _print_help() -> None:
+    """Print help text in current language."""
+    _print_banner()
+    print()
+    print(f"  {t('help.commands')}:")
+    print(f"    serve    {t('help.serve_desc')}")
+    print(f"    setup    {t('help.setup_desc')}")
+    print()
+    print(f"  {t('help.options')}:")
+    print(f"    model-router setup --quick    {t('help.quick_desc')}")
+    print(f"    model-router setup --list     {t('help.list_desc')}")
+    print(f"    model-router setup -c PATH    {t('help.config_desc')}")
+    print(f"    model-router setup --lang XX  Language (en/zh/ja/ko/es/fr/de)")
+    print()
+    print(f"  Examples:")
+    print(f"    model-router                  # Start server")
+    print(f"    model-router setup            # Configure models")
+    print(f"    model-router setup --lang zh  # 中文配置向导")
+    print()
+
+
 def main() -> None:
     """Main CLI entry point with subcommand routing."""
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    # Parse --lang early
+    args_raw = sys.argv[1:]
+    lang = None
+    for i, arg in enumerate(args_raw):
+        if arg == "--lang" and i + 1 < len(args_raw):
+            lang = args_raw[i + 1]
+
+    init_language(lang)
+
+    args = [a for a in args_raw if not a.startswith("--")]
 
     if not args or args[0] in ("serve", "start", "run"):
         _cmd_serve()
     elif args[0] == "setup":
         _cmd_setup()
     elif args[0] in ("help", "--help", "-h"):
-        _print_banner()
-        print()
-        print("  Commands:")
-        print("    serve    Start the server (default)")
-        print("    setup    Interactive model configuration wizard")
-        print()
-        print("  Setup options:")
-        print("    model-router setup --quick    Auto-detect expensive models")
-        print("    model-router setup --list     Show current configuration")
-        print("    model-router setup -c PATH    Use custom config path")
-        print()
-        print("  Examples:")
-        print("    model-router                  # Start server")
-        print("    model-router setup            # Configure models")
-        print("    model-router setup --quick    # Quick auto-detect")
-        print()
+        _print_help()
     else:
         print(f"Unknown command: {args[0]}")
         print("Run 'model-router help' for usage.")

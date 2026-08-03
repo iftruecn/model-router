@@ -4,6 +4,8 @@ Admin API for runtime model configuration.
 Allows agents and users to configure model selection modes
 via HTTP API — no config file editing needed.
 
+Multilingual: Supports EN, ZH, JA, KO, ES, FR, DE.
+
 Endpoints:
     GET  /admin/models           — List all models with current config
     PUT  /admin/models/{id}      — Update a model's selection_mode
@@ -14,9 +16,10 @@ Endpoints:
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from model_router.locales.i18n import t, init_language
 from model_router.providers.registry import model_registry
 
 logger = logging.getLogger(__name__)
@@ -35,6 +38,10 @@ class ModelUpdateRequest(BaseModel):
         pattern="^(auto|manual)$",
         description="'auto' = router can select, 'manual' = user must specify",
     )
+    lang: str = Field(
+        default="en",
+        description="Response language (en/zh/ja/ko/es/fr/de)",
+    )
 
 
 class BatchUpdateRequest(BaseModel):
@@ -43,6 +50,10 @@ class BatchUpdateRequest(BaseModel):
         ...,
         description="Dict of model_id -> selection_mode ('auto' or 'manual')",
         examples=[{"dall-e-3": "manual", "gpt-4o-mini": "auto"}],
+    )
+    lang: str = Field(
+        default="en",
+        description="Response language (en/zh/ja/ko/es/fr/de)",
     )
 
 
@@ -95,20 +106,33 @@ async def update_model(model_id: str, req: ModelUpdateRequest) -> dict:
 
     Example:
         PUT /admin/models/dall-e-3
-        {"selection_mode": "manual"}
+        {"selection_mode": "manual", "lang": "zh"}
 
     This prevents the router from auto-selecting dall-e-3,
     avoiding unexpected costs from image generation.
     """
+    # Set response language
+    init_language(req.lang)
+
     profile = model_registry.get_profile(model_id)
     if not profile:
         raise HTTPException(
             status_code=404,
-            detail=f"Model '{model_id}' not found. Available: {model_registry.list_models()}",
+            detail=t(
+                "error.model_not_found",
+                model_id=model_id,
+                available=str(model_registry.list_models()),
+            ),
         )
 
     old_mode = profile.selection_mode
     profile.selection_mode = req.selection_mode
+
+    # Build localized mode description
+    if req.selection_mode == "manual":
+        mode_desc = t("api.excluded_from_auto")
+    else:
+        mode_desc = t("api.included_in_auto")
 
     logger.info(
         "Model %s selection_mode changed: %s -> %s",
@@ -119,10 +143,7 @@ async def update_model(model_id: str, req: ModelUpdateRequest) -> dict:
         "id": model_id,
         "old_mode": old_mode,
         "new_mode": req.selection_mode,
-        "message": (
-            f"Model '{model_id}' is now {'excluded from' if req.selection_mode == 'manual' else 'included in'}"
-            f" auto-routing"
-        ),
+        "message": t("api.mode_changed", model_id=model_id, mode_desc=mode_desc),
     }
 
 
@@ -137,24 +158,27 @@ async def batch_update(req: BatchUpdateRequest) -> dict:
             "updates": {
                 "dall-e-3": "manual",
                 "sora": "manual",
-                "gpt-4o-mini": "auto",
-                "gpt-4o": "auto"
-            }
+                "gpt-4o-mini": "auto"
+            },
+            "lang": "zh"
         }
 
     Returns summary of changes.
     """
+    # Set response language
+    init_language(req.lang)
+
     changed = []
     errors = []
 
     for model_id, mode in req.updates.items():
         profile = model_registry.get_profile(model_id)
         if not profile:
-            errors.append(f"Model '{model_id}' not found")
+            errors.append(t("error.model_not_found", model_id=model_id, available=""))
             continue
 
         if mode not in ("auto", "manual"):
-            errors.append(f"Invalid mode '{mode}' for '{model_id}' (must be 'auto' or 'manual')")
+            errors.append(t("error.invalid_mode", mode=mode))
             continue
 
         old_mode = profile.selection_mode
