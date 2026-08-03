@@ -1,0 +1,39 @@
+# Model Router 配置示例
+# 复制此文件并根据你的模型修改
+
+models:
+  deepseek-v4-flash:
+    name: "DeepSeek V4 Flash"
+    base_url: "https://api.deepseek.com/v1"
+    api_key: "sk-your-deepseek-key"
+    model: "deepseek-v4-flash"
+    tier: "flash"           # flash / pro
+    multimodal: false
+    cost: "low"
+    speed: "fast"
+
+  deepseek-v4-pro:
+    name: "DeepSeek V4 Pro"
+    base_url: "https://api.deepseek.com/v1"
+    api_key: "sk-your-deepseek-key"
+    model: "deepseek-v4-pro"
+    tier: "pro"
+    multimodal: false
+    cost: "high"
+    speed: "normal"
+
+  gpt-4o:
+    name: "GPT-4o"
+    base_url: "https://api.openai.com/v1"
+    api_key: "sk-your-openai-key"
+    model: "gpt-4o"
+    tier: "pro"
+    multimodal: true
+    cost: "high"
+    speed: "normal"
+
+# 回退链（主模型失败 → 依次尝试）
+fallback_chain:
+  deepseek-v4-flash: ["deepseek-v4-pro", "gpt-4o"]
+  deepseek-v4-pro: ["gpt-4o"]
+  gpt-4o: ["deepseek-v4-pro"]
