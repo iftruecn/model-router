@@ -1,0 +1,201 @@
+"""
+FastAPI application factory for Model Router v2.0.
+
+Manages application lifecycle including:
+- Connection pool initialization/cleanup
+- Model registry initialization (enhances agent's model capabilities)
+- Logging setup
+- Request ID tracking
+- Admin API for runtime model configuration
+"""
+
+import logging
+import uuid
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator, Optional
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+from model_router import __version__
+from model_router.config.defaults import (
+    DEFAULT_HOST,
+    DEFAULT_LOG_DATE_FORMAT,
+    DEFAULT_LOG_FORMAT,
+    DEFAULT_LOG_LEVEL,
+    DEFAULT_PORT,
+    DEFAULT_REGISTRY_MODE,
+)
+from model_router.providers.pool import pool
+from model_router.providers.registry import model_registry
+
+logger = logging.getLogger(__name__)
+
+
+def setup_logging(level: str = DEFAULT_LOG_LEVEL) -> None:
+    """
+    Configure structured logging for the application.
+
+    Replaces the v1.0 print-based logging with proper Python logging module.
+    """
+    logging.basicConfig(
+        level=getattr(logging, level.upper(), logging.INFO),
+        format=DEFAULT_LOG_FORMAT,
+        datefmt=DEFAULT_LOG_DATE_FORMAT,
+    )
+    # Reduce noise from httpx/uvicorn
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logger.info("Logging configured: level=%s", level)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """
+    Application lifespan manager.
+
+    Handles startup and shutdown:
+    - Startup: Initialize connection pool + model registry
+    - Shutdown: Close all connections gracefully
+    """
+    # Startup
+    logger.info("Model Router v%s starting up...", __version__)
+
+    # 1. Initialize connection pool
+    await pool.initialize()
+    logger.info("Connection pool initialized")
+
+    # 2. Initialize model registry with agent's models
+    # models_config is set by create_app() and stored on app.state
+    models_config = getattr(app.state, "models_config", {})
+    registry_mode = getattr(app.state, "registry_mode", DEFAULT_REGISTRY_MODE)
+
+    if models_config:
+        await model_registry.initialize(
+            models_config=models_config,
+            mode=registry_mode,
+        )
+        logger.info(
+            "Model registry initialized: %d models (mode=%s)",
+            len(model_registry.profiles),
+            model_registry.mode,
+        )
+    else:
+        logger.warning("No models_config provided — registry will be empty")
+
+    yield
+
+    # Shutdown
+    logger.info("Model Router shutting down...")
+    await pool.close()
+    logger.info("Shutdown complete")
+
+
+def create_app(
+    models_config: Optional[dict] = None,
+    registry_mode: str = DEFAULT_REGISTRY_MODE,
+) -> FastAPI:
+    """
+    Create and configure the FastAPI application.
+
+    Args:
+        models_config: The agent's models dict (from config.yaml).
+                       Model Router enhances these, does not add new ones.
+        registry_mode: "online", "offline", or "auto"
+
+    Returns:
+        FastAPI: Configured application instance
+    """
+    setup_logging()
+
+    app = FastAPI(
+        title="Model Router",
+        description=(
+            "Universal MOA (Mixture of Agents) middleware — "
+            "intelligent multi-model routing for any OpenAI-compatible agent"
+        ),
+        version=__version__,
+        lifespan=lifespan,
+    )
+
+    # Store config on app.state for lifespan access
+    app.state.models_config = models_config or {}
+    app.state.registry_mode = registry_mode
+
+    @app.middleware("http")
+    async def request_id_middleware(request: Request, call_next):
+        """
+        Inject unique request ID into each request.
+
+        The request_id is:
+        - Generated as UUID v4 (random)
+        - Available in request.state for logging
+        - Returned in X-Request-Id response header
+        """
+        request_id = str(uuid.uuid4())
+        request.state.request_id = request_id
+
+        response = await call_next(request)
+        response.headers["X-Request-Id"] = request_id
+
+        return response
+
+    # Register admin routes (runtime model configuration)
+    from model_router.api.admin import router as admin_router
+    app.include_router(admin_router)
+
+    @app.get("/health")
+    async def health() -> dict:
+        """Health check endpoint with pool and registry status."""
+        return {
+            "status": "ok",
+            "version": __version__,
+            "connection_pool": pool.get_stats(),
+            "registry": {
+                "mode": model_registry.mode,
+                "models": len(model_registry.profiles),
+                "enhanced": sum(
+                    1 for p in model_registry.profiles.values()
+                    if p.source == "enhanced"
+                ),
+            },
+        }
+
+    @app.get("/v1/models")
+    async def list_models() -> dict:
+        """List models the agent has registered with Model Router."""
+        models = []
+        for key, profile in model_registry.profiles.items():
+            models.append({
+                "id": key,
+                "name": profile.name,
+                "provider": profile.provider,
+                "capabilities": profile.capabilities,
+                "context_window": profile.context_window,
+                "supports_vision": profile.supports_vision,
+                "latency_tier": profile.latency_tier,
+                "selection_mode": profile.selection_mode,
+                "source": profile.source,
+            })
+        return {
+            "object": "list",
+            "data": models,
+        }
+
+    @app.get("/")
+    async def root() -> dict:
+        """Root endpoint."""
+        return {
+            "service": "Model Router",
+            "type": "MOA Middleware",
+            "version": __version__,
+            "description": "Universal multi-model routing for any OpenAI-compatible agent",
+            "docs": "/docs",
+            "admin": "/admin/models",
+        }
+
+    return app
+
+
+# Default app instance (for direct import, no models config)
+app = create_app()

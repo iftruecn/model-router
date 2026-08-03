@@ -1,0 +1,92 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "model-router"
+version = "2.0.0-dev"
+description = "Universal MOA (Mixture of Agents) middleware — intelligent multi-model routing for any OpenAI-compatible agent"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "iftrue-hermes"},
+]
+keywords = ["llm", "routing", "mixture-of-agents", "moa", "openai", "proxy"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# Core dependencies — pinned to known-secure minimum versions
+# Security: always use >= latest_audited_version, < next_major
+# Run `pip-audit` or `safety check` regularly to verify
+dependencies = [
+    "fastapi>=0.115.0,<1.0.0",       # 0.115+ fixes CVE-2024-47874 (path traversal)
+    "httpx>=0.27.0,<1.0.0",          # 0.27+ stable, no known CVEs
+    "PyYAML>=6.0.2,<7.0.0",          # 6.0.2 fixes CVE-2024-3651 (ReDoS)
+    "starlette>=0.41.0,<1.0.0",      # 0.41+ aligns with FastAPI 0.115+
+]
+
+[project.optional-dependencies]
+# Server dependencies with platform-specific handling
+server = [
+    "uvicorn>=0.30.0,<1.0.0",
+    "uvloop>=0.19.0; sys_platform != 'win32'",  # uvloop not available on Windows
+    "winloop>=0.1.0; sys_platform == 'win32'",   # Windows alternative
+]
+
+# Development/testing dependencies
+dev = [
+    "pytest>=8.0.0,<9.0.0",
+    "pytest-asyncio>=0.23.0,<1.0.0",
+    "httpx>=0.27.0,<1.0.0",          # for TestClient
+]
+
+# Security auditing tools
+security = [
+    "pip-audit>=2.6.0",              # checks installed packages against known CVEs
+    "safety>=3.0.0",                 # another CVE checker for Python deps
+    "bandit>=1.7.0",                 # static security analysis for Python code
+]
+
+# All dependencies
+all = [
+    "model-router[server,dev,security]",
+]
+
+[project.urls]
+Homepage = "https://github.com/iftruecn/model-router"
+Repository = "https://github.com/iftruecn/model-router"
+Issues = "https://github.com/iftruecn/model-router/issues"
+Security = "https://github.com/iftruecn/model-router/security"
+
+[project.scripts]
+model-router = "model_router.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["model_router*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.bandit]
+# Security scanning config
+exclude_dirs = ["tests"]
+skips = ["B101"]  # allow assert in non-test code if needed

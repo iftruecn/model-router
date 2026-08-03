@@ -1,0 +1,99 @@
+"""
+Default configuration values for Model Router.
+
+All magic numbers and thresholds are defined here for easy configuration.
+These can be overridden via config.yaml or environment variables.
+"""
+
+# ===============================================================
+# Connection Pool
+# ===============================================================
+
+DEFAULT_MAX_CONNECTIONS: int = 100
+DEFAULT_MAX_KEEPALIVE_CONNECTIONS: int = 20
+DEFAULT_CONNECTION_TIMEOUT: float = 120.0
+
+# ===============================================================
+# Router
+# ===============================================================
+
+DEFAULT_MAX_FALLBACK_ATTEMPTS: int = 3
+DEFAULT_MAX_TOTAL_TIMEOUT: float = 300.0
+
+# ===============================================================
+# Classifier / 领域维度
+# ===============================================================
+
+# Supported capability domains
+DOMAINS = ("coding", "reasoning", "math", "creative", "translation", "vision", "chat")
+
+# Default capability score when unknown
+DEFAULT_CAPABILITY_SCORE: float = 5.0
+
+# Long context thresholds
+CLASSIFIER_LONG_CONTEXT_MSG_COUNT: int = 4
+CLASSIFIER_LONG_CONTEXT_CHAR_COUNT: int = 500
+
+# Ultra-short greeting threshold
+CLASSIFIER_ULTRA_SHORT_THRESHOLD: int = 3
+
+# ===============================================================
+# Model Registry / 模型注册中心
+# ===============================================================
+
+# Registry mode: "online", "offline", "auto" (auto = try online, fallback offline)
+DEFAULT_REGISTRY_MODE: str = "auto"
+
+# Cache settings
+REGISTRY_CACHE_DIR: str = ".cache"
+REGISTRY_CACHE_FILE: str = "model_registry.json"
+REGISTRY_CACHE_TTL: int = 86400  # 24 hours in seconds
+
+# Online data sources
+REGISTRY_LMSYS_URL: str = "https://lmarena.ai/api/leaderboard"
+REGISTRY_ARTIFICIAL_URL: str = "https://artificialanalysis.ai/api/models"
+REGISTRY_FETCH_TIMEOUT: float = 30.0  # seconds
+
+# Merge weights: online vs local config
+REGISTRY_ONLINE_WEIGHT: float = 0.7
+REGISTRY_LOCAL_WEIGHT: float = 0.3
+
+# ===============================================================
+# Smart Router / 智能路由
+# ===============================================================
+
+# Scoring weights (configurable)
+ROUTER_CAPABILITY_WEIGHT: float = 1.0
+ROUTER_COST_WEIGHT: float = 0.3
+ROUTER_SPEED_WEIGHT: float = 0.2
+
+# Cost normalization: max cost per 1K tokens (for 0-10 scale)
+ROUTER_MAX_COST_PER_1K: float = 0.06  # ~GPT-4o price
+
+# Speed tiers (responses per minute, for normalization)
+ROUTER_SPEED_FAST: float = 60.0    # >= 60 rpm = fast
+ROUTER_SPEED_SLOW: float = 5.0     # <= 5 rpm = slow
+
+# ===============================================================
+# Quality Check
+# ===============================================================
+
+QUALITY_MIN_LENGTH_FLASH: int = 5
+QUALITY_MIN_LENGTH_PRO: int = 80
+QUALITY_SKIP_IF_MAX_TOKENS_UNDER: int = 100
+QUALITY_REPETITION_THRESHOLD: float = 0.3
+
+# ===============================================================
+# Server
+# ===============================================================
+
+DEFAULT_HOST: str = "127.0.0.1"
+DEFAULT_PORT: int = 6060
+
+# ===============================================================
+# Logging
+# ===============================================================
+
+DEFAULT_LOG_LEVEL: str = "INFO"
+DEFAULT_LOG_FORMAT: str = "[%(asctime)s] [%(levelname)s] %(message)s"
+DEFAULT_LOG_DATE_FORMAT: str = "%H:%M:%S"
