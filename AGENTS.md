@@ -1,6 +1,6 @@
 # AGENTS.md — Model Router 协作须知
 
-> **项目**：Model Router v1.0.0 → v2.0
+> **项目**：Model Router v1.0.0 → v1.0.1
 > **代码**：D:\AI\py\model_router\
 > **知识库**：F:\AI\knowledge\ModelRouter\
 > **发布者**：Hermes

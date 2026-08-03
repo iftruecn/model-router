@@ -1,5 +1,5 @@
 """
-FastAPI application factory for Model Router v2.0.
+FastAPI application factory for Model Router v1.0.1.
 
 Manages application lifecycle including:
 - Connection pool initialization/cleanup

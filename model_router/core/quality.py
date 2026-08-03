@@ -1,5 +1,5 @@
 """
-Quality checker for Model Router v2.0.
+Quality checker for Model Router v1.0.1.
 
 Improved quality checking with:
 - Composite checking (multiple strategies combined)
@@ -132,7 +132,7 @@ class QualityChecker:
         Multilingual: EN, ZH, JA, KO, ES, FR, DE
 
         v1.0 issue: Single keywords like "无法" would trigger refusal.
-        v2.0: Require combination of refusal language + short/no substance.
+        v1.0.1: Require combination of refusal language + short/no substance.
         """
         # Strong refusal patterns (multilingual) — require combination with short content
         strong_refusal = [
