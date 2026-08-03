@@ -10,3 +10,4 @@ Thumbs.db
 config.yaml
 .git-rewrite/
 data/
+_smoke_data/

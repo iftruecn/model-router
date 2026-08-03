@@ -145,6 +145,8 @@ AUTH_PUBLIC_PATHS: tuple = ("/health", "/", "/docs", "/openapi.json", "/redoc")
 # ===============================================================
 
 CAPABILITIES_TIMEOUT_MS: int = 200   # per-borrow-call timeout ceiling
+CAPABILITIES_FILE: str = "capabilities.json"      # persisted declaration
+CAPABILITY_EVENTS_MAX: int = 200     # audit ring size (FR-热感知 §3)
 # Which enhancement points may use borrowed capabilities (FR §2.2)
 CAPABILITIES_USE_FOR: dict = {
     "classification": True,   # vector-assisted classification

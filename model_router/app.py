@@ -32,6 +32,7 @@ from model_router.config.defaults import (
     MEMORY_DEFAULT_DATA_DIR,
 )
 from model_router.core.auth import key_manager
+from model_router.core.capabilities import capability_registry
 from model_router.core.memory import memory_store
 from model_router.providers.pool import pool
 from model_router.providers.registry import model_registry
@@ -106,6 +107,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("API key auth ACTIVE (%d keys)", len(key_manager.list_keys()))
     else:
         logger.info("API key auth inactive (no keys configured — open access)")
+
+    # 5. Bind capability registry to data dir + load persisted declarations
+    capability_registry.bind(data_dir)
+    if capability_registry.enabled:
+        logger.info(
+            "Agent capabilities loaded (%s, fp=%s)",
+            capability_registry.agent_id, capability_registry.fingerprint,
+        )
 
     yield
 
