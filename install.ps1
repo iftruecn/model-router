@@ -11,7 +11,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
-Write-Host "  Model Router v2.0 — Windows Installer" -ForegroundColor Green
+Write-Host "  Model Router v1.0.1 — Windows Installer" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 
