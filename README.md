@@ -122,15 +122,6 @@ Supports `${ENV_VAR}` substitution for API keys. / 支持 `${环境变量}` 引�
 - **Claude Code / Codex**: point `--api-base` to `http://127.0.0.1:6060/v1`
 - **Any OpenAI client**: use as custom endpoint / 作为自定义端点使用
 
-## 📊 vs Alternatives / 对比
-
-| Solution | Input Routing | Output Fallback | Local | Open Source |
-|----------|:---:|:---:|:---:|:---:|
-| **Model Router** | ✅ | ✅ | ✅ | MIT |
-| OpenRouter Auto | ✅ | ❌ | ❌ | ❌ |
-| RouteLLM | ✅ | ❌ | ✅ | Apache |
-| LiteLLM | ✅ | ❌ | ✅ | MIT |
-
 ## 📝 License
 
 MIT © 2026 **iftrue-hermes**
