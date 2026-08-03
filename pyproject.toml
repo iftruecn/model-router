@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "model-router"
 version = "1.0.1"
-description = "Universal MOA (Mixture of Agents) middleware — intelligent multi-model routing for any OpenAI-compatible agent"
+description = "Self-learning routing for AI agents & coding tools — picks the right model, falls back on poor output, gets smarter over time"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"

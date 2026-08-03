@@ -2,8 +2,9 @@
 
 > by **iftrue-hermes** · [MIT License](LICENSE)
 >
-> A lightweight OpenAI-compatible proxy that routes requests to the right model for each task.
-> 轻量级 OpenAI 兼容代理，按任务复杂度自动选择最合适的模型。
+> **Self-learning routing for AI agents & coding tools** — picks the right model for every task, falls back automatically when output is poor, and gets smarter over time.
+>
+> **面向 AI Agent 与编程工具的自学习路由代理** — 按任务复杂度自动选模型、输出不满意自动换模型、越用越准。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue)](https://python.org)
