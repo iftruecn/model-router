@@ -74,6 +74,53 @@ ROUTER_MAX_COST_PER_1K: float = 0.06  # ~GPT-4o price
 ROUTER_SPEED_FAST: float = 60.0    # >= 60 rpm = fast
 ROUTER_SPEED_SLOW: float = 5.0     # <= 5 rpm = slow
 
+# Routing presets (Cursor-style 3 tiers) — capability/cost/speed weights
+ROUTING_PRESETS: dict = {
+    "intelligence": {
+        "capability_weight": 1.0,
+        "cost_weight": 0.05,
+        "speed_weight": 0.1,
+    },
+    "balance": {
+        "capability_weight": 1.0,
+        "cost_weight": 0.3,
+        "speed_weight": 0.2,
+    },
+    "cost": {
+        "capability_weight": 1.0,
+        "cost_weight": 0.8,
+        "speed_weight": 0.3,
+    },
+}
+ROUTING_DEFAULT_PRESET: str = "balance"
+
+# ===============================================================
+# Memory Store / 持久记忆 (v1.0.2)
+# ===============================================================
+
+MEMORY_SCHEMA_VERSION: int = 1
+MEMORY_DEFAULT_AGENT: str = "default"
+MEMORY_MAX_REQUEST_LOG: int = 1000   # ring buffer cap (~500KB)
+MEMORY_SAVE_INTERVAL: int = 10       # persist every N requests
+MEMORY_DEFAULT_DATA_DIR: str = "data"
+
+# ===============================================================
+# Learner / 自学习 (v1.0.2, Gaussian Thompson Sampling)
+# ===============================================================
+
+LEARNER_PRIOR_K: float = 10.0        # Bayesian prior strength
+LEARNER_HANDOFF_N: int = 200         # samples before learned score gains weight
+LEARNER_DEV_THRESHOLD: float = 0.3   # min deviation to justify intervention
+LEARNER_UCB_C: float = 0.5           # exploration bonus coefficient
+LEARNER_VAR_FLOOR: float = 0.01      # posterior variance floor
+LEARNER_EWMA_ALPHA_BASE: float = 0.05   # slow decay (models change rarely)
+LEARNER_EWMA_ALPHA_MAX: float = 0.20    # faster reaction on abrupt shifts
+LEARNER_FALLBACK_PENALTY: float = -1.0  # quality fallback = strong negative
+LEARNER_FEEDBACK_POSITIVE: float = 0.8  # explicit user thumbs-up
+LEARNER_FEEDBACK_NEGATIVE: float = -1.0  # explicit user thumbs-down
+LEARNER_LATENCY_FULL_MS: float = 10000.0  # latency >= 10s -> speed score 0
+LEARNER_BASE_REWARD: float = 0.7     # neutral cost score when pricing unknown
+
 # ===============================================================
 # Quality Check
 # ===============================================================

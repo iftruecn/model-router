@@ -1,15 +1,17 @@
 """
-FastAPI application factory for Model Router v1.0.1.
+FastAPI application factory for Model Router v1.0.2.
 
 Manages application lifecycle including:
 - Connection pool initialization/cleanup
 - Model registry initialization (enhances agent's model capabilities)
+- Persistent memory store load/save (routing learning, v1.0.2)
 - Logging setup
 - Request ID tracking
 - Admin API for runtime model configuration
 """
 
 import logging
+import os
 import uuid
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Optional
@@ -25,7 +27,9 @@ from model_router.config.defaults import (
     DEFAULT_LOG_LEVEL,
     DEFAULT_PORT,
     DEFAULT_REGISTRY_MODE,
+    MEMORY_DEFAULT_DATA_DIR,
 )
+from model_router.core.memory import memory_store
 from model_router.providers.pool import pool
 from model_router.providers.registry import model_registry
 
@@ -55,8 +59,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Application lifespan manager.
 
     Handles startup and shutdown:
-    - Startup: Initialize connection pool + model registry
-    - Shutdown: Close all connections gracefully
+    - Startup: Initialize connection pool + model registry + memory store
+    - Shutdown: Persist memory + close all connections gracefully
     """
     # Startup
     logger.info("Model Router v%s starting up...", __version__)
@@ -83,10 +87,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     else:
         logger.warning("No models_config provided — registry will be empty")
 
+    # 3. Load persistent memory (routing learning stats + request log)
+    data_dir = getattr(app.state, "data_dir", MEMORY_DEFAULT_DATA_DIR)
+    if data_dir != memory_store.data_dir:
+        # Rebind data dir before first load (set via create_app/env)
+        memory_store._data_dir = data_dir
+    await memory_store.load()
+    logger.info("Memory store loaded from %s", data_dir)
+
     yield
 
     # Shutdown
     logger.info("Model Router shutting down...")
+    await memory_store.save()
+    logger.info("Memory store persisted")
     await pool.close()
     logger.info("Shutdown complete")
 
@@ -94,6 +108,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 def create_app(
     models_config: Optional[dict] = None,
     registry_mode: str = DEFAULT_REGISTRY_MODE,
+    data_dir: Optional[str] = None,
 ) -> FastAPI:
     """
     Create and configure the FastAPI application.
@@ -102,6 +117,8 @@ def create_app(
         models_config: The agent's models dict (from config.yaml).
                        Model Router enhances these, does not add new ones.
         registry_mode: "online", "offline", or "auto"
+        data_dir: Persistent memory directory (default: ./data or
+                  $MODEL_ROUTER_DATA_DIR)
 
     Returns:
         FastAPI: Configured application instance
@@ -121,6 +138,11 @@ def create_app(
     # Store config on app.state for lifespan access
     app.state.models_config = models_config or {}
     app.state.registry_mode = registry_mode
+    app.state.data_dir = (
+        data_dir
+        or os.environ.get("MODEL_ROUTER_DATA_DIR")
+        or MEMORY_DEFAULT_DATA_DIR
+    )
 
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next):
@@ -140,13 +162,17 @@ def create_app(
 
         return response
 
-    # Register admin routes (runtime model configuration)
+    # Register admin routes (runtime model configuration + learning)
     from model_router.api.admin import router as admin_router
     app.include_router(admin_router)
 
+    # Register chat completions route (routing + transparency headers)
+    from model_router.api.chat import router as chat_router
+    app.include_router(chat_router)
+
     @app.get("/health")
     async def health() -> dict:
-        """Health check endpoint with pool and registry status."""
+        """Health check endpoint with pool, registry and memory status."""
         return {
             "status": "ok",
             "version": __version__,
@@ -159,6 +185,7 @@ def create_app(
                     if p.source == "enhanced"
                 ),
             },
+            "memory": memory_store.get_cost_stats(),
         }
 
     @app.get("/v1/models")
@@ -192,6 +219,8 @@ def create_app(
             "description": "Universal multi-model routing for any OpenAI-compatible agent",
             "docs": "/docs",
             "admin": "/admin/models",
+            "learning": "/admin/learning",
+            "preset": "/admin/preset",
         }
 
     return app

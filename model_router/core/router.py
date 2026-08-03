@@ -1,5 +1,5 @@
 """
-Smart routing engine for Model Router.
+Smart routing engine for Model Router v1.0.2.
 
 Combines query feature extraction (classifier) with model capability
 profiles (registry) to select the best model for each query.
@@ -10,9 +10,17 @@ MOA Selection Modes:
 
 Scoring formula:
   model_score = capability_match * W_c - cost_penalty * W_cost + speed_bonus * W_s
+
+v1.0.2 additions:
+- Routing presets: intelligence / balance / cost (weight profiles)
+- Learned score fusion: Gaussian Thompson Sampling (progressive handoff,
+  shadow mode by default — see core/learner.py)
+- Cost accounting: estimated savings vs strongest candidate
+- Request log: bounded ring buffer for feedback attribution
 """
 
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -26,10 +34,18 @@ from model_router.config.defaults import (
     ROUTER_SPEED_FAST,
     ROUTER_SPEED_SLOW,
     ROUTER_SPEED_WEIGHT,
+    ROUTING_DEFAULT_PRESET,
+    ROUTING_PRESETS,
 )
+from model_router.core.learner import Learner, learner as global_learner
+from model_router.core.memory import MemoryStore, memory_store as global_memory
 from model_router.providers.registry import ModelProfile, model_registry
 
 logger = logging.getLogger(__name__)
+
+# Rough tokens estimate used for cost accounting (input chars -> tokens)
+_CHARS_PER_TOKEN: float = 4.0
+_ASSUMED_OUTPUT_TOKENS: float = 500.0
 
 
 @dataclass
@@ -43,6 +59,10 @@ class RoutingResult:
     candidates_scored: int = 0
     top_candidates: list = field(default_factory=list)
     is_explicit: bool = False  # True if user explicitly selected this model
+    routing_mode: str = "static"  # static | shadow | learned
+    preset: str = ROUTING_DEFAULT_PRESET
+    estimated_cost: float = 0.0
+    baseline_cost: float = 0.0
 
     def to_dict(self) -> dict:
         return {
@@ -54,6 +74,17 @@ class RoutingResult:
             "candidates_scored": self.candidates_scored,
             "top_candidates": self.top_candidates[:5],
             "is_explicit": self.is_explicit,
+            "routing_mode": self.routing_mode,
+            "preset": self.preset,
+        }
+
+    def to_headers(self) -> dict:
+        """Routing transparency headers (X-Routed-To / X-Routing-Reason)."""
+        return {
+            "X-Routed-To": self.model_key,
+            "X-Routing-Reason": self.reason,
+            "X-Routing-Mode": self.routing_mode,
+            "X-Routing-Preset": self.preset,
         }
 
 
@@ -64,6 +95,9 @@ class SmartRouter:
     Respects MOA selection modes:
     - If user specifies a model explicitly (model="dall-e-3"), use it directly
     - Otherwise, only consider models with selection_mode="auto"
+
+    Supports 3 routing presets (intelligence / balance / cost) and blends
+    learned scores from the Gaussian TS learner (progressive handoff).
     """
 
     def __init__(
@@ -71,18 +105,50 @@ class SmartRouter:
         capability_weight: float = ROUTER_CAPABILITY_WEIGHT,
         cost_weight: float = ROUTER_COST_WEIGHT,
         speed_weight: float = ROUTER_SPEED_WEIGHT,
+        preset: str = ROUTING_DEFAULT_PRESET,
+        learner: Optional[Learner] = None,
+        memory: Optional[MemoryStore] = None,
     ):
-        self._capability_weight = capability_weight
-        self._cost_weight = cost_weight
-        self._speed_weight = speed_weight
+        self._base_weights = (capability_weight, cost_weight, speed_weight)
+        self._preset = preset if preset in ROUTING_PRESETS else ROUTING_DEFAULT_PRESET
         self._classifier = domain_classifier
         self._registry = model_registry
+        self._learner = learner or global_learner
+        self._memory = memory or global_memory
+
+    # ------------------------------------------------------------------
+    # Presets
+    # ------------------------------------------------------------------
+
+    @property
+    def preset(self) -> str:
+        return self._preset
+
+    def set_preset(self, name: str) -> bool:
+        """Set global routing preset. Returns False if name unknown."""
+        if name not in ROUTING_PRESETS:
+            logger.warning("Unknown routing preset: %s", name)
+            return False
+        self._preset = name
+        logger.info("Routing preset set: %s", name)
+        return True
+
+    def _resolve_weights(self, preset_override: Optional[str]) -> tuple[float, float, float]:
+        """Resolve scoring weights from preset (per-request override wins)."""
+        name = preset_override if preset_override in ROUTING_PRESETS else self._preset
+        p = ROUTING_PRESETS[name]
+        return p["capability_weight"], p["cost_weight"], p["speed_weight"]
+
+    # ------------------------------------------------------------------
+    # Routing
+    # ------------------------------------------------------------------
 
     async def route(
         self,
         messages: list,
         models_config: dict,
         request_data: Optional[dict] = None,
+        request_id: Optional[str] = None,
     ) -> RoutingResult:
         """
         Select the best model for the given request.
@@ -94,7 +160,9 @@ class SmartRouter:
         Args:
             messages: Chat messages list
             models_config: Models configuration dict
-            request_data: Full request data (may contain explicit "model" field)
+            request_data: Full request data (may contain "model" or
+                          "routing_preset" fields)
+            request_id: Optional id used for request-log attribution
 
         Returns:
             RoutingResult with selected model and scoring details
@@ -107,7 +175,7 @@ class SmartRouter:
             return self._handle_explicit_model(explicit_model, models_config, request_data)
 
         # Auto-routing: only consider selection_mode="auto" models
-        return await self._auto_route(messages, models_config, request_data)
+        return await self._auto_route(messages, models_config, request_data, request_id)
 
     def _handle_explicit_model(
         self,
@@ -132,6 +200,7 @@ class SmartRouter:
                 score=10.0,  # explicit selection = highest priority
                 reason=f"explicit_selection(mode={profile.selection_mode})",
                 is_explicit=True,
+                preset=self._preset,
             )
 
         # Model not in registry but in config — still respect user's choice
@@ -144,6 +213,7 @@ class SmartRouter:
                 score=10.0,
                 reason="explicit_selection(config)",
                 is_explicit=True,
+                preset=self._preset,
             )
 
         # Model not found at all
@@ -154,6 +224,7 @@ class SmartRouter:
             score=0.0,
             reason=f"model_not_found({model_key})",
             is_explicit=True,
+            preset=self._preset,
         )
 
     async def _auto_route(
@@ -161,6 +232,7 @@ class SmartRouter:
         messages: list,
         models_config: dict,
         request_data: dict,
+        request_id: Optional[str] = None,
     ) -> RoutingResult:
         """
         Auto-select the best model from auto-selectable candidates.
@@ -185,16 +257,47 @@ class SmartRouter:
         if not candidates:
             candidates = self._build_auto_profiles_from_config(models_config)
 
-        # 4. Score each candidate
-        scored = []
-        for profile in candidates:
-            score, breakdown = self._score_model(profile, features)
-            scored.append((profile, score, breakdown))
+        # 4. Resolve weights (preset, per-request override wins)
+        preset_override = request_data.get("routing_preset")
+        cap_w, cost_w, speed_w = self._resolve_weights(preset_override)
+        active_preset = preset_override if preset_override in ROUTING_PRESETS else self._preset
 
-        # 5. Sort by score descending
+        # 5. Score each candidate: static score + learned fusion
+        task = features.primary_domain
+        total_attempts = sum(
+            self._learner.sample_count(task, p.model_id) for p in candidates
+        )
+        scored = []
+        routing_mode = "static"
+        for profile in candidates:
+            static_score, breakdown = self._score_model(
+                profile, features, cap_w, cost_w, speed_w
+            )
+            # Learned fusion (progressive handoff; shadow mode = no effect)
+            learned = self._learner.learned_score(
+                task,
+                profile.model_id,
+                total_attempts=total_attempts,
+                explore=True,  # candidates are auto-mode; manual never enters
+            )
+            learned_scaled = ((learned + 1.0) * 5.0) if learned is not None else None
+            n_samples = self._learner.sample_count(task, profile.model_id)
+            blended, mode = self._learner.blend_score(
+                static_score, learned_scaled, n_samples
+            )
+            if mode == "learned":
+                routing_mode = "learned"
+            elif mode == "shadow" and routing_mode == "static":
+                routing_mode = "shadow"
+            breakdown["learned_bonus"] = (
+                round(blended - static_score, 2) if mode == "learned" else 0.0
+            )
+            scored.append((profile, blended, breakdown))
+
+        # 6. Sort by score descending
         scored.sort(key=lambda x: x[1], reverse=True)
 
-        # 6. Select best model
+        # 7. Select best model
         if not scored:
             # Ultimate fallback: first auto model in config
             fallback_key = self._find_first_auto_model(models_config)
@@ -204,6 +307,7 @@ class SmartRouter:
                 score=0.0,
                 reason="no_auto_candidates",
                 features=features.to_dict(),
+                preset=active_preset,
             )
 
         best_profile, best_score, best_breakdown = scored[0]
@@ -218,20 +322,46 @@ class SmartRouter:
             for p, s, b in scored[:5]
         ]
 
+        # 8. Cost accounting: estimated cost vs strongest (priciest) candidate
+        estimated_tokens = features.context_length / _CHARS_PER_TOKEN + _ASSUMED_OUTPUT_TOKENS
+        est_cost = self._estimate_cost(best_profile, estimated_tokens)
+        baseline_cost = max(
+            (self._estimate_cost(p, estimated_tokens) for p, _, _ in scored),
+            default=est_cost,
+        )
+        self._memory.add_cost(est_cost, baseline_cost)
+
+        # 9. Request log (ring buffer) for feedback attribution
+        if request_id:
+            self._memory.append_request_log({
+                "request_id": request_id,
+                "ts": time.time(),
+                "task": task,
+                "preset": active_preset,
+                "routing_mode": routing_mode,
+                "final_model": best_profile.model_id,
+                "failed_models": [],  # filled by fallback chain when wired
+                "candidates": [p.model_id for p, _, _ in scored[:5]],
+            })
+
         result = RoutingResult(
             model_key=best_profile.model_id,
             model_name=best_profile.name,
             score=best_score,
-            reason=f"auto_domain:{features.primary_domain}(score={features.primary_score:.1f})",
+            reason=f"auto_domain:{task}(score={features.primary_score:.1f})",
             features=features.to_dict(),
             candidates_scored=len(scored),
             top_candidates=top_candidates,
+            routing_mode=routing_mode,
+            preset=active_preset,
+            estimated_cost=round(est_cost, 6),
+            baseline_cost=round(baseline_cost, 6),
         )
 
         logger.info(
-            "Auto-routed to %s (score=%.2f, domain=%s, candidates=%d, excluded_manual=%d)",
-            best_profile.name, best_score, features.primary_domain, len(scored),
-            len(self._registry.get_manual_models()),
+            "Auto-routed to %s (score=%.2f, domain=%s, preset=%s, mode=%s, candidates=%d)",
+            best_profile.name, best_score, task, active_preset,
+            routing_mode, len(scored),
         )
         logger.debug("Routing result: %s", result.to_dict())
 
@@ -241,6 +371,9 @@ class SmartRouter:
         self,
         profile: ModelProfile,
         features: QueryFeatures,
+        capability_weight: float,
+        cost_weight: float,
+        speed_weight: float,
     ) -> tuple[float, dict]:
         """
         Score a model against query features.
@@ -285,13 +418,23 @@ class SmartRouter:
 
         # Total score
         total = (
-            normalized_capability * self._capability_weight
-            - cost_penalty * self._cost_weight
-            + speed_bonus * self._speed_weight
+            normalized_capability * capability_weight
+            - cost_penalty * cost_weight
+            + speed_bonus * speed_weight
         )
         breakdown["total"] = round(total, 2)
 
         return total, breakdown
+
+    @staticmethod
+    def _estimate_cost(profile: ModelProfile, estimated_tokens: float) -> float:
+        """Rough cost estimate for one request (input+output tokens)."""
+        input_tokens = estimated_tokens * 0.6
+        output_tokens = estimated_tokens * 0.4
+        return (
+            profile.cost_per_1k_input * input_tokens / 1000.0
+            + profile.cost_per_1k_output * output_tokens / 1000.0
+        )
 
     def _estimate_context_needed(self, features: QueryFeatures) -> int:
         """Estimate minimum context window needed."""
@@ -333,18 +476,73 @@ class SmartRouter:
         # Fallback: return first model regardless
         return list(models_config.keys())[0] if models_config else "unknown"
 
+    # ------------------------------------------------------------------
+    # Learning loop entry points (called after response completes)
+    # ------------------------------------------------------------------
+
+    async def record_outcome(
+        self,
+        request_id: str,
+        quality_passed: bool,
+        latency_ms: float,
+    ) -> Optional[dict]:
+        """
+        Record the outcome of a completed request and learn from it.
+
+        Looks up the request log for attribution (task + final model),
+        computes the continuous reward and updates the learner.
+        Returns the reward breakdown, or None if request not found.
+        """
+        entry = self._memory.get_request(request_id)
+        if entry is None:
+            logger.warning("record_outcome: request %s not in log", request_id)
+            return None
+
+        task = entry.get("task", "chat")
+        model = entry.get("final_model", "")
+        if not model:
+            return None
+
+        components = await self._learner.record_outcome(
+            task=task,
+            model=model,
+            quality_passed=quality_passed,
+            latency_ms=latency_ms,
+            cost=entry.get("cost", 0.0),
+            baseline_cost=entry.get("baseline_cost", 0.0),
+        )
+        await self._memory.maybe_save()
+        return {
+            "task": task,
+            "model": model,
+            "reward": round(components.total, 4),
+            "breakdown": {
+                "quality": components.quality,
+                "speed": components.speed,
+                "cost": components.cost,
+            },
+        }
+
+    # ------------------------------------------------------------------
+    # Stats
+    # ------------------------------------------------------------------
+
     def get_routing_stats(self) -> dict:
-        """Get router statistics."""
+        """Get router statistics (incl. learning + cost stats)."""
         auto_count = sum(1 for p in self._registry.profiles.values() if p.selection_mode == "auto")
         manual_count = len(self._registry.profiles) - auto_count
         return {
-            "capability_weight": self._capability_weight,
-            "cost_weight": self._cost_weight,
-            "speed_weight": self._speed_weight,
+            "capability_weight": self._base_weights[0],
+            "cost_weight": self._base_weights[1],
+            "speed_weight": self._base_weights[2],
+            "preset": self._preset,
+            "available_presets": list(ROUTING_PRESETS.keys()),
             "registry_mode": self._registry.mode,
             "total_models": len(self._registry.profiles),
             "auto_models": auto_count,
             "manual_models": manual_count,
+            "learning": self._learner.get_stats(),
+            "cost": self._memory.get_cost_stats(),
         }
 
 

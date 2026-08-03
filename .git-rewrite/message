@@ -1,0 +1,24 @@
+v1.0.1-dev: Qoder's production-grade rewrite
+
+P0 — Core Fixes:
+- Global httpx connection pool (providers/pool.py)
+- Fallback attempt limits (core/fallback.py)
+- Magic number extraction (config/defaults.py)
+- Structured logging (app.py)
+- Request ID tracking (app.py middleware)
+
+P1 — Quality Upgrades:
+- Streaming SSE support (api/streaming.py)
+- Weighted multi-domain classifier, 7 languages (core/classifier.py)
+- Multi-language refusal detection (core/quality.py)
+
+Infrastructure:
+- PEP 621 pyproject.toml with secure version pins
+- Cross-platform install scripts (install.sh / install.ps1)
+- Dependency security audit (scripts/security_audit.py)
+- Dependabot config (.github/dependabot.yml)
+- Interactive CLI setup wizard (cli/setup.py)
+- Admin REST API (api/admin.py)
+- pytest.ini + 12 unit tests (100% pass)
+
+Code by Qoder, review by Hermes
