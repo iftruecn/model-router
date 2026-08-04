@@ -8,6 +8,7 @@ Usage:
     model-router setup              # Interactive setup wizard
     model-router setup --quick      # Quick auto-detect mode
     model-router setup --list       # Show current config
+    model-router discover           # Auto-discover models from API endpoint
     model-router setup --lang zh    # Force Chinese
     python -m model_router serve    # Same as above
 
@@ -73,13 +74,24 @@ def _cmd_setup() -> None:
     setup_main()
 
 
+def _cmd_discover() -> None:
+    """Auto-discover models from an OpenAI-compatible API endpoint."""
+    from model_router.cli.discover import main as discover_main
+
+    # Remove 'discover' from argv so discover module sees only its own flags
+    sys.argv = [a for a in sys.argv if a != "discover"]
+    sys.argv.insert(0, "model-router")
+    discover_main()
+
+
 def _print_help() -> None:
     """Print help text in current language."""
     _print_banner()
     print()
     print(f"  {t('help.commands')}:")
-    print(f"    serve    {t('help.serve_desc')}")
-    print(f"    setup    {t('help.setup_desc')}")
+    print(f"    serve      {t('help.serve_desc')}")
+    print(f"    setup      {t('help.setup_desc')}")
+    print(f"    discover   Auto-discover models from API endpoint (v1.0.8)")
     print()
     print(f"  {t('help.options')}:")
     print(f"    model-router setup --quick    {t('help.quick_desc')}")
@@ -87,12 +99,17 @@ def _print_help() -> None:
     print(f"    model-router setup -c PATH    {t('help.config_desc')}")
     print("    model-router setup --lang XX  Language (en/zh/ja/ko/es/fr/de)")
     print()
+    print("  Discover models (v1.0.8):")
+    print("    model-router discover -u https://api.deepseek.com/v1 -k sk-xxx")
+    print("    model-router discover --base-url URL --api-key KEY --output config.yaml")
+    print()
     print("  Environment (Docker):")
     print("    MODEL_ROUTER_HOST=0.0.0.0  MODEL_ROUTER_PORT=6060")
     print()
     print("  Examples:")
     print("    model-router                  # Start server")
     print("    model-router setup            # Configure models")
+    print("    model-router discover -u URL  # Auto-discover models")
     print("    model-router setup --lang zh  # 中文配置向导")
     print("    docker compose up -d          # One-command deployment")
     print()
@@ -115,6 +132,8 @@ def main() -> None:
         _cmd_serve()
     elif args[0] == "setup":
         _cmd_setup()
+    elif args[0] == "discover":
+        _cmd_discover()
     elif args[0] in ("help", "--help", "-h"):
         _print_help()
     else:
