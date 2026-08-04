@@ -155,6 +155,16 @@ CAPABILITIES_USE_FOR: dict = {
 }
 
 # ===============================================================
+# Semantic Cache / 语义缓存 (FR-Qoder-v2-platform §FR-P1)
+# ===============================================================
+
+CACHE_ENABLED: bool = True
+CACHE_TTL_SECONDS: int = 300      # entries older than TTL are ignored
+CACHE_CAPACITY: int = 512         # LRU ring size
+CACHE_SIM_THRESHOLD: float = 0.95 # bigram-Jaccard similarity to hit
+CACHE_MIN_KEY_LEN: int = 8        # queries shorter than this are never cached
+
+# ===============================================================
 # Quality Check
 # ===============================================================
 

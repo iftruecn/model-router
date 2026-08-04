@@ -27,6 +27,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from model_router.config.defaults import ROUTING_PRESETS
+from model_router.core.cache import semantic_cache
 from model_router.core.capabilities import capability_registry
 from model_router.core.evaluator import offline_evaluator
 from model_router.core.learner import diversity_guard, learner
@@ -410,4 +411,43 @@ async def put_capabilities(req: CapabilitiesRequest) -> dict:
         "declared": declared,
         "count": len(declared),
         "status": capability_registry.get_status(),
+    }
+
+
+# ------------------------------------------------------------------
+# Semantic cache endpoints (FR-Qoder-v2-platform §FR-P1)
+# ------------------------------------------------------------------
+
+class CacheSeedRequest(BaseModel):
+    """Pre-seed a known question/answer pair into the semantic cache."""
+    messages: list = Field(..., description="Chat messages of the question")
+    response: dict = Field(..., description="OpenAI-shaped answer to serve on hit")
+    model: str = Field(default="", description="Model that produced the answer")
+
+
+@router.get("/cache")
+async def cache_stats() -> dict:
+    """Semantic cache statistics (entries / hit rate / thresholds)."""
+    return semantic_cache.get_stats()
+
+
+@router.delete("/cache")
+async def cache_clear() -> dict:
+    """Drop all cached entries."""
+    cleared = semantic_cache.clear()
+    logger.info("Semantic cache cleared (%d entries)", cleared)
+    return {"cleared": cleared}
+
+
+@router.post("/cache/seed")
+async def cache_seed(req: CacheSeedRequest) -> dict:
+    """
+    Pre-seed the cache with a known Q/A pair. Useful while provider
+    forwarding is pending — agents can populate answers themselves.
+    """
+    stored = semantic_cache.store(req.messages, req.response, model=req.model)
+    return {
+        "stored": stored,
+        "key": semantic_cache.build_key(req.messages) if stored else "",
+        "stats": semantic_cache.get_stats(),
     }

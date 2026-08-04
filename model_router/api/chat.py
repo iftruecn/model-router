@@ -17,6 +17,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from model_router.api.streaming import stream_model_response
+from model_router.core.cache import semantic_cache
 from model_router.core.capabilities import capability_registry
 from model_router.core.router import RoutingResult, smart_router
 
@@ -76,6 +77,26 @@ async def chat_completions(request: Request) -> Any:
 
     is_streaming = request_data.get("stream", False)
     request_id = getattr(request.state, "request_id", "unknown")
+
+    # Semantic cache: similar non-streaming questions short-circuit here
+    if not is_streaming:
+        cached = semantic_cache.lookup(request_data.get("messages", []))
+        if cached is not None:
+            logger.info(
+                "Request %s served from semantic cache "
+                "(sim=%.3f, age=%.1fs, model=%s)",
+                request_id, cached["similarity"],
+                cached["age_seconds"], cached["model"],
+            )
+            return JSONResponse(
+                cached["response"],
+                headers={
+                    "X-Request-Id": request_id,
+                    "X-Routing-Cache": "hit",
+                    "X-Routing-Cache-Similarity": str(cached["similarity"]),
+                },
+            )
+
     models_config = getattr(request.app.state, "models_config", {})
 
     logger.info(
