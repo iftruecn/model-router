@@ -191,33 +191,45 @@ class KeyManager:
 
     async def load(self) -> None:
         """Load keys from disk (idempotent)."""
+        import asyncio
         path = os.path.join(self._data_dir, AUTH_KEYS_FILE)
         if not os.path.exists(path):
             self._loaded = True
             return
         try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            data = await asyncio.to_thread(self._load_keys_sync, path)
             with self._lock:
-                self._keys = data.get("keys", {})
+                self._keys = data
             logger.info("Loaded %d API keys from %s", len(self._keys), path)
         except Exception as exc:
             logger.error("Failed to load API keys: %s", exc)
         self._loaded = True
 
+    def _load_keys_sync(self, path: str) -> dict:
+        """Synchronous key loading (called via to_thread)."""
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("keys", {})
+
     async def save(self) -> None:
         """Atomic write (tmp + os.replace)."""
+        import asyncio
         os.makedirs(self._data_dir, exist_ok=True)
         path = os.path.join(self._data_dir, AUTH_KEYS_FILE)
         tmp = path + ".tmp"
         with self._lock:
             data = {"schema_version": AUTH_SCHEMA_VERSION, "keys": self._keys}
         try:
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            os.replace(tmp, path)
+            await asyncio.to_thread(self._save_keys_sync, tmp, path, data)
         except Exception as exc:
             logger.error("Failed to persist API keys: %s", exc)
+
+    @staticmethod
+    def _save_keys_sync(tmp: str, path: str, data: dict) -> None:
+        """Synchronous key saving (called via to_thread)."""
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, path)
 
 
 # Global singleton (mirrors memory_store / learner patterns)

@@ -195,6 +195,14 @@ class Learner:
         if baseline_cost > 0:
             cost_score = max(0.0, 1.0 - cost / baseline_cost)
         else:
+            # P2-15: log once that cost signal is degraded (unknown pricing)
+            if not hasattr(self, '_cost_degraded_logged'):
+                logger.info(
+                    "Cost reward signal degraded: all baseline costs are 0 "
+                    "(pricing not configured). Cost dimension will use neutral "
+                    "reward. Configure pricing.yaml to enable cost-aware routing."
+                )
+                self._cost_degraded_logged = True
             cost_score = LEARNER_BASE_REWARD  # unknown pricing: neutral-high
         return RewardComponents(quality=1.0, speed=speed_score, cost=cost_score)
 
@@ -311,6 +319,8 @@ class DiversityGuard:
       with probability ``explore_rate`` per request, pick a non-top model
     """
 
+    _MAX_TASKS = 100  # P2-11: cap history dict to prevent unbounded growth
+
     def __init__(
         self,
         window: int = DIVERSITY_WINDOW,
@@ -327,6 +337,17 @@ class DiversityGuard:
 
     def record(self, task: str, model: str) -> None:
         """Record one routing selection."""
+        # P2-11: evict stale tasks when history dict grows too large
+        if task not in self._history and len(self._history) >= self._MAX_TASKS:
+            # Remove oldest tasks (by deque emptiness or least recent)
+            stale = [t for t, h in self._history.items() if not h]
+            for t in stale[:len(stale) // 2]:
+                del self._history[t]
+            # If still full, remove tasks with shortest histories
+            if len(self._history) >= self._MAX_TASKS:
+                sorted_tasks = sorted(self._history, key=lambda t: len(self._history[t]))
+                for t in sorted_tasks[:len(sorted_tasks) // 4]:
+                    del self._history[t]
         hist = self._history.setdefault(task, deque(maxlen=self._window))
         hist.append(model)
 

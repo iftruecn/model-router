@@ -17,10 +17,15 @@ v1.0.2 additions:
   shadow mode by default — see core/learner.py)
 - Cost accounting: estimated savings vs strongest candidate
 - Request log: bounded ring buffer for feedback attribution
+
+P2-14: Global singletons (smart_router, learner, diversity_guard, etc.)
+are used for simplicity. AppContext exists but migration is incremental.
+New code should prefer dependency injection via AppContext where possible.
 """
 
 import logging
 import random
+import numpy as np
 import time
 from dataclasses import dataclass, field
 from typing import Optional
@@ -50,7 +55,9 @@ from model_router.providers.registry import ModelProfile, model_registry
 logger = logging.getLogger(__name__)
 
 # Rough tokens estimate used for cost accounting (input chars -> tokens)
-_CHARS_PER_TOKEN: float = 4.0
+# P2-6 fix: 4.0 is English-centric. CJK text averages ~1.5-2 chars/token.
+# Use 3.0 as a compromise for mixed multilingual traffic.
+_CHARS_PER_TOKEN: float = 3.0
 _ASSUMED_OUTPUT_TOKENS: float = 500.0
 
 
@@ -137,6 +144,7 @@ class SmartRouter:
         self._learner = learner or global_learner
         self._memory = memory or global_memory
         self._guard = guard or global_guard
+        self._rng = random.Random()
 
     # ------------------------------------------------------------------
     # Presets
@@ -427,10 +435,9 @@ class SmartRouter:
 
         return result
 
-    @staticmethod
-    def _rng_pick(scored: list):
+    def _rng_pick(self, scored: list):
         """Random pick among non-top candidates (diversity exploration)."""
-        return random.choice(scored)
+        return self._rng.choice(scored)
 
     def _score_model(
         self,
@@ -538,8 +545,19 @@ class SmartRouter:
         for key, cfg in models_config.items():
             if cfg.get("selection_mode", "auto") != "manual":
                 return key
-        # Fallback: return first model regardless
-        return list(models_config.keys())[0] if models_config else "unknown"
+        # P1-6 fix: log diagnostic info when no auto models found
+        if models_config:
+            logger.warning(
+                "_find_first_auto_model: no auto models in config "
+                "(all %d models are selection_mode=manual), using first model",
+                len(models_config),
+            )
+            return list(models_config.keys())[0]
+        logger.warning(
+            "_find_first_auto_model: models_config is empty, "
+            "reason=no_auto_models_in_config",
+        )
+        return "unknown"
 
     # ------------------------------------------------------------------
     # Learning loop entry points (called after response completes)

@@ -13,13 +13,13 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 # Known Agent config paths (priority order)
+# P2-16 fix: use Path.home()-based paths instead of hardcoded Windows absolutes
 AGENT_CONFIG_PATHS: list[dict] = [
-    # Hermes (primary)
+    # Hermes (primary) — cross-platform paths
     {"name": "Hermes", "paths": [
-        "E:\\AI\\HermesData\\config.yaml",
-        "D:\\AI\\HermesData\\config.yaml",
         "~/.hermes/config.yaml",
         "~/.config/hermes/config.yaml",
+        str(Path.home() / "HermesData" / "config.yaml"),
     ]},
     # Claude Code
     {"name": "Claude Code", "paths": [

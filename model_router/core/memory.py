@@ -178,7 +178,8 @@ class MemoryStore:
         if not self._dirty:
             return
         cost = self._stats["cost"]
-        if force or cost["total_requests"] % MEMORY_SAVE_INTERVAL == 0:
+        # P1-3 fix: skip when total_requests==0 (0%N==0 triggers unwanted first-write)
+        if force or (cost["total_requests"] > 0 and cost["total_requests"] % MEMORY_SAVE_INTERVAL == 0):
             await self.save()
 
     # ------------------------------------------------------------------

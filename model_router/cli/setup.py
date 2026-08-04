@@ -59,7 +59,7 @@ def _confirm(prompt: str, default: bool = True) -> bool:
     answer = _input_colored(prompt + suffix, C.YELLOW)
     if not answer:
         return default
-    return answer.lower() in (yes_word.lower(), no_word.lower(), "y", "yes") or (
+    return answer.lower() in (yes_word.lower(), "y", "yes") or (
         default and answer.lower() == yes_word[0].lower()
     )
 

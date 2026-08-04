@@ -36,6 +36,7 @@ from model_router.config.defaults import (
     REGISTRY_LOCAL_WEIGHT,
     REGISTRY_LMSYS_URL,
     REGISTRY_ONLINE_WEIGHT,
+    REGISTRY_ARTIFICIAL_URL,
 )
 
 logger = logging.getLogger(__name__)

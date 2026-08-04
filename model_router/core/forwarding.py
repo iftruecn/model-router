@@ -42,13 +42,16 @@ logger = logging.getLogger(__name__)
 
 # Concurrency limiter: prevents connection pool exhaustion under load
 _forwarding_semaphore: Optional[asyncio.Semaphore] = None
+_semaphore_lock = asyncio.Lock()
 
 
-def _get_semaphore() -> asyncio.Semaphore:
-    """Lazy-init semaphore (must be created inside running event loop)."""
+async def _get_semaphore() -> asyncio.Semaphore:
+    """Lazy-init semaphore with lock protection (must be created inside running event loop)."""
     global _forwarding_semaphore
     if _forwarding_semaphore is None:
-        _forwarding_semaphore = asyncio.Semaphore(DEFAULT_FORWARDING_CONCURRENCY)
+        async with _semaphore_lock:
+            if _forwarding_semaphore is None:
+                _forwarding_semaphore = asyncio.Semaphore(DEFAULT_FORWARDING_CONCURRENCY)
     return _forwarding_semaphore
 
 
@@ -72,7 +75,7 @@ async def forward_non_streaming(
     """
     fallback_chain_config = fallback_chain_config or {}
     start_time = time.time()
-    sem = _get_semaphore()
+    sem = await _get_semaphore()
 
     async with sem:
         return await _forward_non_streaming_inner(
@@ -208,7 +211,8 @@ async def _forward_non_streaming_inner(
             last_error = ("unknown", None)
 
     # All models in chain failed
-    return _build_error_response(last_error, failed_models, routing), {}
+    error_body, http_status = _build_error_response(last_error, failed_models, routing)
+    return error_body, {"_http_status": http_status}
 
 
 # ------------------------------------------------------------------
@@ -234,7 +238,7 @@ async def forward_streaming(
     from model_router.api.streaming import stream_model_response
 
     fallback_chain_config = fallback_chain_config or {}
-    sem = _get_semaphore()
+    sem = await _get_semaphore()
 
     async with sem:
         return await _forward_streaming_inner(
@@ -330,6 +334,7 @@ async def _stream_with_quality_check(
     quality_checker.check() after stream ends.  Best-effort: errors
     are logged but never raised (must not break the stream).
     """
+    from model_router.core.router import smart_router
     collected_text: list[str] = []
 
     try:
@@ -350,10 +355,22 @@ async def _stream_with_quality_check(
                     except (json.JSONDecodeError, IndexError, KeyError):
                         pass
             yield chunk
-    except Exception:
-        # Stream error — yield what we have, log, and stop
-        logger.warning("Stream error for %s, quality check skipped", model_key)
-        raise
+    except Exception as exc:
+        # P1-4 fix: yield error event + clean SSE termination, do NOT raise
+        # (raise would propagate to Starlette → 500 + truncated SSE stream)
+        logger.warning("Stream error for %s: %s, sending clean termination", model_key, exc)
+        try:
+            error_event = {
+                "error": {
+                    "message": f"Stream interrupted: {exc}",
+                    "type": "stream_error",
+                }
+            }
+            yield f"data: {json.dumps(error_event)}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception:
+            pass
+        return
 
     # Stream finished — run quality check (best-effort)
     try:
@@ -370,6 +387,15 @@ async def _stream_with_quality_check(
                 model_key,
                 result.reason,
             )
+            # P0-3 fix: record_outcome for streaming (was missing)
+            try:
+                await smart_router.record_outcome(
+                    request_id=request_id,
+                    quality_passed=result.passed,
+                    latency_ms=0.0,  # streaming: no precise latency, use default
+                )
+            except Exception as exc:
+                logger.warning("Streaming record_outcome failed: %s", exc)
             # Annotate request log (best-effort)
             try:
                 entry = memory_store.get_request(request_id)
@@ -425,6 +451,15 @@ async def _call_provider(
         "Content-Type": "application/json",
     }
 
+    # P1-1 fix: whitelist of standard OpenAI Chat Completion API fields
+    # Prevents internal/custom fields (e.g. routing_preset, _internal_trace_id)
+    # from leaking to third-party provider APIs.
+    _OPENAI_BODY_FIELDS = {
+        "messages", "model", "temperature", "max_tokens", "stream",
+        "top_p", "frequency_penalty", "presence_penalty", "stop",
+        "logit_bias", "user", "n", "seed", "response_format",
+        "tools", "tool_choice", "logprobs", "top_logprobs",
+    }
     body = {
         "model": model_name,
         "messages": request_data.get("messages", []),
@@ -434,7 +469,7 @@ async def _call_provider(
         **{
             k: v
             for k, v in request_data.items()
-            if k not in ("messages", "model", "temperature", "max_tokens", "stream")
+            if k in _OPENAI_BODY_FIELDS and k not in ("model", "messages", "temperature", "max_tokens", "stream")
         },
     }
 
@@ -456,27 +491,35 @@ def _build_error_response(
     last_error: Optional[tuple],
     failed_models: list,
     routing: RoutingResult,
-) -> dict:
-    """Build an OpenAI-compatible error response."""
+) -> tuple[dict, int]:
+    """Build an OpenAI-compatible error response.
+
+    P1-5 fix: returns (error_body, http_status_code) so the caller can
+    propagate the upstream status code instead of always returning 502.
+    """
     if last_error is None:
         return {
             "error": {
                 "message": "No models available to handle request",
                 "type": "no_models_available",
             }
-        }
+        }, 503
 
     error_type, status_code = last_error
 
     if error_type == "timeout":
         message = f"All models timed out ({len(failed_models)} tried)"
         error_type_str = "timeout"
+        http_status = 504
     elif error_type == "http_error":
         message = f"All models failed ({len(failed_models)} tried, last HTTP {status_code})"
         error_type_str = "all_models_failed"
+        # P1-5: propagate upstream status code (401/429/400 etc.)
+        http_status = status_code if status_code and 400 <= status_code < 600 else 502
     else:
         message = f"All models failed ({len(failed_models)} tried)"
         error_type_str = "all_models_failed"
+        http_status = 502
 
     return {
         "error": {
@@ -484,4 +527,4 @@ def _build_error_response(
             "type": error_type_str,
             "failed_models": failed_models,
         }
-    }
+    }, http_status

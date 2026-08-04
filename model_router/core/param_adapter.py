@@ -65,6 +65,22 @@ PROVIDER_PARAMS: dict[str, dict[str, dict]] = {
         "temperature": {"range": [0.0, 2.0]},
         "top_p": {"range": [0.0, 1.0]},
     },
+    # P2-9: additional provider support
+    "mistral": {
+        "max_tokens": {"aliases": ["max_output_tokens"], "range": [1, 8192]},
+        "temperature": {"range": [0.0, 1.0]},
+        "top_p": {"range": [0.0, 1.0]},
+    },
+    "together": {
+        "max_tokens": {"aliases": ["max_output_tokens", "max_completion_tokens"]},
+        "temperature": {"range": [0.0, 2.0]},
+        "top_p": {"range": [0.0, 1.0]},
+    },
+    "groq": {
+        "max_tokens": {"aliases": ["max_output_tokens"], "range": [1, 8192]},
+        "temperature": {"range": [0.0, 2.0]},
+        "top_p": {"range": [0.0, 1.0]},
+    },
 }
 
 
@@ -81,6 +97,12 @@ def _detect_provider(base_url: str) -> str:
         return "google"
     if "volces" in url_lower or "doubao" in url_lower or "ark" in url_lower:
         return "doubao"
+    if "mistral" in url_lower:
+        return "mistral"
+    if "together" in url_lower:
+        return "together"
+    if "groq" in url_lower:
+        return "groq"
     return "default"
 
 

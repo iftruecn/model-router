@@ -22,6 +22,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# P2-5: Dashboard HTML is inlined for zero-dependency deployment
+# (no CDN, no build step, no template engine). This is intentional —
+# the dashboard must work with just FastAPI, no static files needed.
+# If the HTML grows further, consider extracting to a templates/ directory.
 _DASHBOARD_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -82,6 +86,17 @@ _DASHBOARD_HTML = """<!DOCTYPE html>
                        border-radius:6px; }
   .explain-model { font-weight:600; font-size:13px; }
   .explain-score { color:var(--blue); font-size:12px; }
+  .agent-tabs { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+  .agent-tab { background:#2a2e3d; border:1px solid #3a3f52; color:var(--fg);
+               border-radius:8px; padding:6px 16px; cursor:pointer; font-size:13px; }
+  .agent-tab.active { border-color:var(--blue); color:var(--blue); background:#1a2a3d; }
+  .agent-tab:hover { border-color:var(--blue); }
+  .agent-card { background:#1e2130; border-radius:8px; padding:12px; margin-bottom:8px; }
+  .agent-card .agent-name { font-weight:600; font-size:14px; color:var(--green); }
+  .agent-card .agent-key { color:var(--dim); font-size:11px; font-family:monospace; }
+  .agent-card .agent-stats { display:flex; gap:16px; margin-top:6px; font-size:12px; }
+  .agent-card .agent-stats span { color:var(--dim); }
+  .agent-card .agent-stats .val { color:var(--fg); font-weight:500; }
   .explain-breakdown { display:flex; gap:12px; font-size:11px; color:var(--dim);
                        margin-top:4px; }
 </style>
@@ -105,6 +120,17 @@ _DASHBOARD_HTML = """<!DOCTYPE html>
   <div class="card"><div class="label">Cache Hit Rate</div>
     <div class="value green" id="cache_rate">—</div></div>
 </div>
+
+<!-- Agent Views (v1.5.0) -->
+<section>
+  <h2>Agent Views</h2>
+  <div class="agent-tabs" id="agent_tabs">
+    <button class="agent-tab active" onclick="switchAgent('all')">All</button>
+  </div>
+  <div id="agent_details">
+    <div class="stat-row"><span class="stat-label">Loading...</span></div>
+  </div>
+</section>
 
 <!-- Routing Preset -->
 <section>
@@ -425,8 +451,74 @@ function renderExplain(d) {
   document.getElementById('explain_result').innerHTML = html;
 }
 
+
+// Agent view functions (v1.5.0)
+let currentAgent = 'all';
+let agentData = {};
+
+async function loadAgents() {
+  try {
+    const r = await fetch('/admin/agents');
+    if (!r.ok) return;
+    agentData = await r.json();
+    const agents = agentData.agents || {};
+    const agentTypes = Object.keys(agents);
+
+    let tabs = '<button class="agent-tab' + (currentAgent === 'all' ? ' active' : '') +
+      '" onclick="switchAgent(\'all\')">All</button>';
+    agentTypes.forEach(at => {
+      tabs += '<button class="agent-tab' + (currentAgent === at ? ' active' : '') +
+        '" onclick="switchAgent(\'' + esc(at) + '\')">' + esc(at) + '</button>';
+    });
+    document.getElementById('agent_tabs').innerHTML = tabs;
+
+    if (currentAgent === 'all') {
+      let html = '';
+      agentTypes.forEach(at => {
+        const a = agents[at];
+        html += agentCard(at, a);
+      });
+      if (!html) html = '<div class="stat-row"><span class="stat-label">No agents installed. Run: model-router install</span></div>';
+      document.getElementById('agent_details').innerHTML = html;
+    } else {
+      const a = agents[currentAgent];
+      if (a) {
+        document.getElementById('agent_details').innerHTML = agentCard(currentAgent, a);
+      }
+    }
+  } catch(e) { console.debug('Agent load error:', e); }
+}
+
+function agentCard(name, data) {
+  const usage = data.usage || {};
+  const models = data.models || [];
+  let html = '<div class="agent-card">';
+  html += '<div class="agent-name">' + esc(name) + '</div>';
+  html += '<div class="agent-key">' + esc(data.masked_key || '') + '</div>';
+  html += '<div class="agent-stats">';
+  html += '<span>Requests: <span class="val">' + (usage.requests || 0) + '</span></span>';
+  html += '<span>Fallbacks: <span class="val">' + (usage.fallbacks || 0) + '</span></span>';
+  html += '<span>Models: <span class="val">' + models.length + '</span></span>';
+  html += '</div>';
+  if (models.length > 0) {
+    html += '<div style="margin-top:6px;font-size:11px;color:var(--dim)">';
+    html += models.slice(0, 5).map(esc).join(', ');
+    if (models.length > 5) html += ' ... +' + (models.length - 5);
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function switchAgent(name) {
+  currentAgent = name;
+  loadAgents();
+}
+
 refresh();
+loadAgents();
 setInterval(refresh, 10000);
+setInterval(loadAgents, 15000);
 </script>
 </body>
 </html>

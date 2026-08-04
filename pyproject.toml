@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "model-router"
-version = "1.4.0"
+version = "1.6.0"
 description = "Self-learning routing for AI agents & coding tools — picks the right model, falls back on poor output, gets smarter over time"
 readme = "README.md"
 license = {text = "MIT"}

@@ -47,10 +47,19 @@ def _classify_tier(model_id: str) -> str:
 
 
 def _detect_multimodal(model_id: str) -> bool:
-    """Detect if model likely supports multimodal input."""
+    """Detect if model likely supports multimodal input.
+    
+    P2-4 fix: use part-based matching to avoid false positives
+    (e.g. "text-gemini-classifier" should not match "gemini").
+    """
     name_lower = model_id.lower()
+    parts = set(name_lower.replace("/", "-").replace(".", "-").split("-"))
     for kw in _MULTIMODAL_KEYWORDS:
-        if kw in name_lower:
+        if kw in parts:
+            return True
+    # Also match compound patterns like "gpt-4o-mini" (gpt-4o is in parts)
+    for kw in _MULTIMODAL_KEYWORDS:
+        if "-" in kw and kw in name_lower:
             return True
     return False
 
@@ -127,7 +136,10 @@ def _print_table(models: list[dict]) -> None:
 
 
 def _generate_yaml(models: list[dict], existing_keys: set) -> str:
-    """Generate config.yaml content from discovered models."""
+    """Generate config.yaml content from discovered models.
+    
+    P2-12 fix: also generate fallback_chain section for resilience.
+    """
     models_section = {}
     for m in models:
         if m["key"] in existing_keys:
@@ -145,8 +157,24 @@ def _generate_yaml(models: list[dict], existing_keys: set) -> str:
     if not models_section:
         return ""
 
+    # P2-12: generate fallback_chain — each model falls back to next same-tier model
+    fallback_chain = {}
+    model_keys = list(models_section.keys())
+    for i, key in enumerate(model_keys):
+        tier = models_section[key].get("tier", "pro")
+        # Find next model of same tier as fallback
+        for j in range(i + 1, min(i + 4, len(model_keys))):
+            next_key = model_keys[j]
+            if models_section[next_key].get("tier", "pro") == tier:
+                fallback_chain[key] = [next_key]
+                break
+
+    config = {"models": models_section}
+    if fallback_chain:
+        config["fallback_chain"] = fallback_chain
+
     return yaml.dump(
-        {"models": models_section},
+        config,
         default_flow_style=False,
         allow_unicode=True,
         sort_keys=False,

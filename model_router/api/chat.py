@@ -71,7 +71,9 @@ async def chat_completions(request: Request) -> Any:
     """
     try:
         request_data = await request.json()
-    except Exception:
+    except (ValueError, UnicodeDecodeError) as exc:
+        # P2-7 fix: narrow exception (was bare Exception)
+        logger.debug("Invalid JSON in request body: %s", exc)
         return JSONResponse({"error": "Invalid JSON"}, status_code=400)
 
     # In-band capability hot sensing (rides along, never blocks)
@@ -193,6 +195,8 @@ async def _handle_non_streaming(
 
     # Check if response is an error
     if "error" in response_body:
-        return JSONResponse(response_body, status_code=502, headers=headers)
+        # P1-5 fix: use upstream status code from forwarding layer (default 502)
+        http_status = extra_headers.pop("_http_status", 502) if extra_headers else 502
+        return JSONResponse(response_body, status_code=http_status, headers=headers)
 
     return JSONResponse(response_body, status_code=200, headers=headers)

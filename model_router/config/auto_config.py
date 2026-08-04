@@ -18,13 +18,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
-def _mask(key: str) -> str:
-    """Mask API key for safe logging."""
-    if not key:
-        return "********"
-    if len(key) <= 7:
-        return "*" * len(key)
-    return key[:3] + "****" + key[-4:]
+from model_router.core.security import mask_key as _mask
 
 # Known environment variable -> base_url mapping
 KNOWN_KEYS: dict[str, str] = {
@@ -92,7 +86,7 @@ def auto_generate_config(
         except Exception as exc:
             failed_providers.append(provider)
             logger.warning(
-                "Could not discover modelss from %s (%s): %s",
+                "Could not discover models from %s (%s): %s",
                 provider, base_url, exc,
             )
 

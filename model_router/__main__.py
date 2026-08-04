@@ -9,6 +9,7 @@ Usage:
     model-router setup --quick      # Quick auto-detect mode
     model-router setup --list       # Show current config
     model-router discover           # Auto-discover models from API endpoint
+    model-router install              # One-click agent install (v1.5.0)
     model-router setup --lang zh    # Force Chinese
     python -m model_router serve    # Same as above
 
@@ -84,6 +85,16 @@ def _cmd_discover() -> None:
     discover_main()
 
 
+
+def _cmd_install() -> None:
+    """One-click agent install."""
+    from model_router.cli.install import main as install_main
+
+    # Remove 'install' from argv so install module sees only its own flags
+    sys.argv = [a for a in sys.argv if a != "install"]
+    sys.argv.insert(0, "model-router")
+    install_main()
+
 def _print_help() -> None:
     """Print help text in current language."""
     _print_banner()
@@ -92,6 +103,7 @@ def _print_help() -> None:
     print(f"    serve      {t('help.serve_desc')}")
     print(f"    setup      {t('help.setup_desc')}")
     print(f"    discover   Auto-discover models from API endpoint (v1.0.8)")
+    print(f"    install    One-click agent install (v1.5.0)")
     print()
     print(f"  {t('help.options')}:")
     print(f"    model-router setup --quick    {t('help.quick_desc')}")
@@ -134,6 +146,8 @@ def main() -> None:
         _cmd_setup()
     elif args[0] == "discover":
         _cmd_discover()
+    elif args[0] == "install":
+        _cmd_install()
     elif args[0] in ("help", "--help", "-h"):
         _print_help()
     else:

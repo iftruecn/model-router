@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 # Valid values for enum-like fields
 _VALID_TIERS = {"flash", "pro"}
 _VALID_COSTS = {"low", "medium", "high"}
-_VALID_SPEEDS = {"fast", "normal", "slow"}
+_VALID_SPEEDS = {"fast", "medium", "slow"}
 
 # Required fields for each model entry
 _REQUIRED_MODEL_FIELDS = {"base_url", "api_key", "model"}
@@ -303,7 +303,9 @@ def _simple_yaml_load(path: str) -> dict:
     # Remove comments and blank lines, track indentation
     result: dict = {}
     stack: list[tuple[int, dict]] = [(-1, result)]
-    current_list_key: Optional[str] = None
+    # P2-10 fix: track last key explicitly instead of relying on dict order
+    pending_list_key: Optional[str] = None
+    pending_list_indent: int = -1
 
     for line in lines:
         stripped = line.rstrip()
@@ -316,6 +318,7 @@ def _simple_yaml_load(path: str) -> dict:
         # Pop stack to find parent
         while len(stack) > 1 and stack[-1][0] >= indent:
             stack.pop()
+            pending_list_key = None  # reset on stack pop
 
         parent = stack[-1][1]
 
@@ -325,10 +328,12 @@ def _simple_yaml_load(path: str) -> dict:
             value = value.strip()
 
             if value == '' or value.startswith('#'):
-                # Nested mapping
+                # Nested mapping — could be dict or list (determined by next line)
                 new_dict: dict = {}
                 parent[key] = new_dict
                 stack.append((indent, new_dict))
+                pending_list_key = key
+                pending_list_indent = indent
             else:
                 # Scalar value
                 value = value.strip('"').strip("'")
@@ -346,13 +351,18 @@ def _simple_yaml_load(path: str) -> dict:
                         except ValueError:
                             pass
                 parent[key] = value
+                pending_list_key = None
 
         elif content.startswith('- '):
             # List item
             item = content[2:].strip().strip('"').strip("'")
-            # Find the key this list belongs to
-            if isinstance(parent, dict):
-                # Find last key added to parent
+            # Use tracked key if at correct indent level
+            if pending_list_key and indent > pending_list_indent:
+                if not isinstance(parent.get(pending_list_key), list):
+                    parent[pending_list_key] = []
+                parent[pending_list_key].append(item)
+            elif isinstance(parent, dict):
+                # Fallback: find last key (old behavior)
                 last_key = list(parent.keys())[-1] if parent else None
                 if last_key and not isinstance(parent[last_key], list):
                     parent[last_key] = []

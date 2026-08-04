@@ -74,7 +74,8 @@ def _load_yaml_builtin(path: str) -> dict:
 
 
 def _load_pricing_data() -> dict[str, dict[str, float]]:
-    """Load pricing from YAML file. Try PyYAML first, then built-in parser."""
+    """Load pricing from YAML file. Uses PyYAML (required dependency)."""
+    # P1-6 fix: removed fragile built-in YAML parser
     # pricing.yaml lives in project root (not config/)
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     yaml_path = os.path.join(project_root, 'pricing.yaml')
@@ -92,7 +93,8 @@ def _load_pricing_data() -> dict[str, dict[str, float]]:
         return {}
     except ImportError:
         logger.debug("PyYAML not installed, using built-in parser for pricing.yaml")
-        return _load_yaml_builtin(yaml_path)
+        logger.warning("PyYAML not available, pricing data not loaded")
+        return {}
     except Exception as exc:
         logger.warning("Failed to load pricing.yaml: %s", exc)
         return {}
@@ -117,10 +119,11 @@ def get_pricing(model_key: str) -> dict[str, float]:
     if model_key in _PRICING_DATA:
         return _PRICING_DATA[model_key]
 
-    # Fuzzy match: check if model_key contains a known pricing key
-    # e.g. "openrouter/meta-llama/llama-3.1-405b" matches "llama-3.1-405b"
+    # P2-8 fix: stricter fuzzy match — require the known key to appear
+    # at a word boundary (after / or -) to avoid false positives
+    # e.g. "gpt-4" should not match "gpt-4o-mini" pricing
     for known_key, pricing in _PRICING_DATA.items():
-        if known_key in model_key:
+        if model_key.endswith(known_key) or f"/{known_key}" in model_key:
             return pricing
 
     return {"input": 0.0, "output": 0.0}

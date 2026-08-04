@@ -90,12 +90,18 @@ class SemanticCache:
         """
         Return the cached entry if a sufficiently similar question
         exists and is fresh; otherwise None. Never raises.
+        
+        P2-13: O(n) linear scan over _entries for Jaccard similarity.
+        At capacity=1000 this is fast enough (<1ms per lookup on modern
+        hardware). If capacity grows beyond ~10K, consider minhash/simhash
+        pre-filtering. For now the bounded capacity keeps this acceptable.
         """
         if not self.enabled:
             return None
         key = self.build_key(messages)
         if len(key.split("||")[0]) < self.min_key_len:
-            self.misses += 1
+            with self._lock:
+                self.misses += 1
             return None
         now = time.time()
         best_key, best_entry, best_score = None, None, 0.0
@@ -110,7 +116,8 @@ class SemanticCache:
                     best_key, best_entry, best_score = norm_key, entry, score
             if best_entry is not None and best_score >= self.sim_threshold:
                 self._entries.move_to_end(best_key)  # LRU touch
-                self.hits += 1
+                with self._lock:
+                    self.hits += 1
                 return {
                     "response": best_entry["response"],
                     "similarity": round(best_score, 4),

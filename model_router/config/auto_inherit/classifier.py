@@ -21,13 +21,21 @@ def classify_tier(model_id: str) -> str:
 
 
 def detect_multimodal(model_id: str) -> bool:
-    """Detect if model likely supports multimodal/vision input."""
+    """Detect if model likely supports multimodal/vision input.
+    
+    P2-4 fix: use part-based matching to avoid false positives.
+    """
     name_lower = model_id.lower()
+    parts = set(name_lower.replace("/", "-").replace(".", "-").split("-"))
     vision_keywords = (
         "vision", "vl", "gemini", "claude", "gpt-4o", "gpt-4v",
         "grok", "doubao-seed", "omni",
     )
     for kw in vision_keywords:
-        if kw in name_lower:
+        if kw in parts:
+            return True
+    # Compound patterns
+    for kw in vision_keywords:
+        if "-" in kw and kw in name_lower:
             return True
     return False

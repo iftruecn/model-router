@@ -92,7 +92,6 @@ class QualityChecker:
         # v1.4.0 (R7): Strip reasoning fields that some providers
         # may embed in content (DeepSeek R1, OpenAI o-series).
         # These are not part of the actual response.
-        import re
         stripped = response_text
         # Remove <think>...</think> tags (some providers wrap reasoning)
         stripped = re.sub(r'<think>.*?</think>', '', stripped, flags=re.DOTALL)

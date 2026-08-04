@@ -126,7 +126,9 @@ class FallbackManager:
         Prioritizes same-tier models, then cross-tier models.
         """
         primary_tier = models_config.get(primary_model, {}).get("tier", "pro")
-        others = [k for k in models_config if k != primary_model]
+        # P1-8 fix: filter out disabled models
+        others = [k for k in models_config if k != primary_model
+                  and models_config[k].get("enabled", True) is not False]
 
         # Same tier first, then other tiers
         same_tier = [k for k in others if models_config[k].get("tier") == primary_tier]

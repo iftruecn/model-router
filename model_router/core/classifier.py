@@ -33,7 +33,12 @@ class Pattern:
     compiled: Optional[re.Pattern] = field(default=None, repr=False)
 
     def __post_init__(self):
-        self.compiled = re.compile(self.regex, re.IGNORECASE)
+        # P1-7 fix: handle invalid regex gracefully
+        try:
+            self.compiled = re.compile(self.regex, re.IGNORECASE)
+        except re.error as e:
+            logger.warning("Invalid regex pattern %r: %s", self.regex, e)
+            self.compiled = None
 
     def matches(self, text: str) -> bool:
         """Check if pattern matches the text."""

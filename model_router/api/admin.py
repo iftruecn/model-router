@@ -736,3 +736,13 @@ async def sync_env_keys(request: Request) -> dict:
             else "No models updated"
         ),
     }
+
+
+@router.get("/admin/agents")
+async def admin_agents(request: Request) -> dict:
+    """Agent registry stats (v1.5.0)."""
+    from model_router.core.agent_registry import get_agent_registry
+    registry = get_agent_registry()
+    stats = registry.get_agent_stats()
+    return {"agents": stats}
+

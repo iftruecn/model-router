@@ -77,7 +77,8 @@ class EnvKeySync:
             value = os.environ.get(env_var, "").strip()
             if value:
                 self._hashes[env_var] = self._key_hash(value)
-        logger.info(
+        # P2-17 fix: downgrade to DEBUG to avoid partial key exposure
+        logger.debug(
             "EnvKeySync snapshot: %d keys tracked (%s)",
             len(self._hashes),
             ", ".join(
@@ -85,6 +86,7 @@ class EnvKeySync:
                 for v in self._hashes
             ),
         )
+        logger.info("EnvKeySync snapshot: %d keys tracked", len(self._hashes))
 
     def check(self) -> list[str]:
         """

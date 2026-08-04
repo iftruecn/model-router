@@ -1,5 +1,5 @@
 """
-FastAPI application factory for Model Router v1.4.0.
+FastAPI application factory for Model Router v1.5.0.
 
 Manages application lifecycle including:
 - Connection pool initialization/cleanup
@@ -464,6 +464,46 @@ def _load_config_from_yaml() -> tuple[dict, dict]:
                     )
         except Exception as exc:
             logger.debug("Agent inheritance skipped: %s", exc)
+
+
+    # Layer 4: Multi-agent auto-connect (v1.5.0)
+    # Scan all installed agents and merge their models
+    if not models_config:
+        try:
+            from model_router.core.agent_registry import get_agent_registry
+            from model_router.config.auto_inherit import build_models_from_agent
+            from model_router.config.agent_discovery import discover_all_agents
+
+            registry = get_agent_registry(data_dir=MEMORY_DEFAULT_DATA_DIR)
+            all_agents = discover_all_agents()
+
+            for agent in all_agents:
+                if registry.is_installed(agent.agent_type):
+                    # Agent was installed, load its models
+                    from model_router.config.auto_inherit.detector import (
+                        _load_yaml_safe, parse_agent_providers,
+                    )
+                    fmt = "json" if agent.config_path.suffix == ".json" else "yaml"
+                    cfg = _load_yaml_safe(agent.config_path, fmt)
+                    if cfg:
+                        providers = parse_agent_providers(cfg)
+                        for prov in providers:
+                            for model_id in prov.get("models", []):
+                                model_key = model_id
+                                if model_key not in models_config:
+                                    models_config[model_key] = {
+                                        "model": model_id,
+                                        "provider": prov.get("name", agent.agent_type),
+                                        "api_key": prov.get("api_key", ""),
+                                        "base_url": prov.get("base_url", ""),
+                                        "tier": "pro",
+                                    }
+                    logger.info(
+                        "Layer 4: Loaded %d models from installed agent '%s'",
+                        len(models_config), agent.agent_type,
+                    )
+        except Exception as exc:
+            logger.debug("Multi-agent auto-connect skipped: %s", exc)
 
     if not models_config:
         logger.warning(
