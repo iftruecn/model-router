@@ -11,3 +11,4 @@ config.yaml
 .git-rewrite/
 data/
 _smoke_data/
+model_router.egg-info/
