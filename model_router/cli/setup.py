@@ -232,11 +232,12 @@ def setup_wizard(config_path: Optional[str] = None) -> None:
             selected_manual = list(set(selected_manual + expensive))
 
     # Step 5: Apply changes
+    # P0-8: always set mode explicitly (setdefault won't reset existing "manual")
     for key in models:
         if key in selected_manual:
             models[key]["selection_mode"] = "manual"
         else:
-            models[key].setdefault("selection_mode", "auto")
+            models[key]["selection_mode"] = "auto"
 
     config["models"] = models
 

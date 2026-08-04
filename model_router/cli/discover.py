@@ -79,6 +79,9 @@ def discover_models(
 
     Each entry: {id, key, name, tier, multimodal, base_url, api_key}
     """
+    # P0-10: guard against empty/None base_url
+    if not base_url or not base_url.strip():
+        raise ValueError("base_url must not be empty")
     url = f"{base_url.rstrip('/')}/models"
     headers = {"Authorization": f"Bearer {api_key}"}
 
@@ -264,11 +267,24 @@ def main() -> None:
         sys.exit(0)
 
     if config_path.exists():
-        # Append to existing config
-        print(f"{C.CYAN}Appending {len(new_models)} new model(s) to {output_path}{C.RESET}")
-        with open(config_path, "a", encoding="utf-8") as f:
-            f.write("\n")
-            f.write(yaml_content)
+        # P0-9: merge into existing config instead of raw append
+        # (raw append can create duplicate 'models:' keys)
+        print(f"{C.CYAN}Merging {len(new_models)} new model(s) into {output_path}{C.RESET}")
+        try:
+            existing_data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+        except Exception:
+            existing_data = {}
+        new_data = yaml.safe_load(yaml_content) or {}
+        # Merge models sections
+        existing_models = existing_data.setdefault("models", {})
+        existing_models.update(new_data.get("models", {}))
+        # Merge fallback_chain sections
+        existing_fb = existing_data.setdefault("fallback_chain", {})
+        existing_fb.update(new_data.get("fallback_chain", {}))
+        config_path.write_text(
+            yaml.dump(existing_data, default_flow_style=False, allow_unicode=True, sort_keys=False),
+            encoding="utf-8",
+        )
     else:
         # Create new config
         print(f"{C.GREEN}Creating {output_path} with {len(new_models)} model(s){C.RESET}")

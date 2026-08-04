@@ -18,6 +18,7 @@ All state persists through core.memory.MemoryStore.
 """
 
 import logging
+import threading
 import math
 import random
 from collections import deque
@@ -334,27 +335,26 @@ class DiversityGuard:
         self._rng = rng or random.Random()
         self._history: dict[str, deque] = {}  # task -> recent model picks
         self._forced_count = 0
+        # P2-27: lock for concurrent access to _history
+        self._lock = threading.Lock()
 
     def record(self, task: str, model: str) -> None:
         """Record one routing selection."""
-        # P2-11 + P3-3 fix: evict stale tasks, but protect recently active ones
-        if task not in self._history and len(self._history) >= self._MAX_TASKS:
-            # Phase 1: remove tasks with empty deques (no recent activity)
-            stale = [t for t, h in self._history.items() if not h]
-            for t in stale[:len(stale) // 2]:
-                del self._history[t]
-            # Phase 2: if still full, remove tasks with shortest histories
-            # but skip the newest half (by insertion order) to avoid premature eviction
-            if len(self._history) >= self._MAX_TASKS:
-                tasks_by_len = sorted(self._history, key=lambda t: len(self._history[t]))
-                # Only evict from the oldest half (first half of dict keys)
-                all_tasks = list(self._history.keys())
-                older_half = set(all_tasks[:len(all_tasks) // 2])
-                evictable = [t for t in tasks_by_len if t in older_half]
-                for t in evictable[:len(evictable) // 2]:
+        with self._lock:
+            # P2-11 + P3-3 fix: evict stale tasks, but protect recently active ones
+            if task not in self._history and len(self._history) >= self._MAX_TASKS:
+                stale = [t for t, h in self._history.items() if not h]
+                for t in stale[:len(stale) // 2]:
                     del self._history[t]
-        hist = self._history.setdefault(task, deque(maxlen=self._window))
-        hist.append(model)
+                if len(self._history) >= self._MAX_TASKS:
+                    tasks_by_len = sorted(self._history, key=lambda t: len(self._history[t]))
+                    all_tasks = list(self._history.keys())
+                    older_half = set(all_tasks[:len(all_tasks) // 2])
+                    evictable = [t for t in tasks_by_len if t in older_half]
+                    for t in evictable[:len(evictable) // 2]:
+                        del self._history[t]
+            hist = self._history.setdefault(task, deque(maxlen=self._window))
+            hist.append(model)
 
     def should_force_exploration(self, task: str) -> tuple[bool, float]:
         """
@@ -386,8 +386,10 @@ class DiversityGuard:
 
     def get_stats(self, task: Optional[str] = None) -> dict:
         """Diversity snapshot for /admin/learning."""
+        with self._lock:
+            history_copy = {k: list(v) for k, v in self._history.items()}
         stats: dict[str, dict] = {}
-        for t, hist in self._history.items():
+        for t, hist in history_copy.items():
             if task and t != task:
                 continue
             counts: dict[str, int] = {}
@@ -401,12 +403,20 @@ class DiversityGuard:
                 "dominant": max(counts, key=counts.get) if counts else None,
                 "dominant_share": round(max(counts.values()) / total, 3) if total else 0.0,
             }
+        # P2-27: include a summary status for dashboard display
+        total_tasks = len(history_copy)
+        any_dominant = any(
+            len(set(h)) == 1 and len(h) >= 5
+            for h in history_copy.values()
+        )
+        status = "degraded" if any_dominant else ("active" if total_tasks > 0 else "idle")
         return {
             "window_size": self._window,
             "dominance_threshold": self._threshold,
             "explore_rate": self._explore_rate,
             "forced_explorations": self._forced_count,
             "tasks": stats,
+            "status": status,
         }
 
 

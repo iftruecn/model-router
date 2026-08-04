@@ -1,13 +1,23 @@
-# Model Router — Docker image
+# Model Router — Docker image (v1.8.0)
 # One-command deploy: docker compose up -d
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install package (deps pinned to secure minimums in pyproject.toml)
+# P1-20: Copy only dependency files first for better layer caching
 COPY pyproject.toml README.md LICENSE ./
+# Create empty package dir so pip install works before full COPY
+RUN mkdir -p model_router && \
+    pip install --no-cache-dir ".[server]" || true
+
+# Now copy the full source
 COPY model_router ./model_router
 RUN pip install --no-cache-dir ".[server]"
+
+# P0-6: Run as non-root user
+RUN groupadd -r modelrouter && useradd -r -g modelrouter -d /app modelrouter && \
+    chown -R modelrouter:modelrouter /app
+USER modelrouter
 
 # Container-friendly defaults (overridable via env)
 ENV MODEL_ROUTER_HOST=0.0.0.0 \

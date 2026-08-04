@@ -7,7 +7,7 @@ services:
     image: model-router:latest
     container_name: model-router
     ports:
-      - "6060:6060"
+      - "127.0.0.1:6060:6060"
     volumes:
       # Persistent memory: routing learning stats + request log survive restarts
       - ./data:/data

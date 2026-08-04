@@ -326,6 +326,7 @@ class CapabilityRegistry:
             "use_for": dict(self.use_for),
             "timeout_ms": self.timeout_ms,
             "recent_events": list(self._events)[-5:],
+            "registry_mode": getattr(self, "_mode", "local"),
         }
 
 

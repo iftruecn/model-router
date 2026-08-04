@@ -1,5 +1,5 @@
 """
-FastAPI application factory for Model Router v1.7.0.
+FastAPI application factory for Model Router v1.8.0.
 
 Manages application lifecycle including:
 - Connection pool initialization/cleanup
@@ -193,9 +193,18 @@ def create_app(
 
     @app.middleware("http")
     async def body_size_limit_middleware(request: Request, call_next):
-        """Reject POST/PUT requests with body exceeding MAX_REQUEST_BODY_SIZE."""
+        """Reject POST/PUT requests with body exceeding MAX_REQUEST_BODY_SIZE.
+        P1-16: also reject chunked transfer-encoding (can bypass content-length check).
+        """
         if request.method in ("POST", "PUT"):
             content_length = request.headers.get("content-length")
+            transfer_encoding = request.headers.get("transfer-encoding", "").lower()
+            # Reject chunked transfers (size unknown upfront, potential DoS vector)
+            if "chunked" in transfer_encoding:
+                return JSONResponse(
+                    {"error": {"message": "Chunked transfer not allowed", "type": "payload_too_large"}},
+                    status_code=413,
+                )
             if content_length and int(content_length) > MAX_REQUEST_BODY_SIZE:
                 return JSONResponse(
                     {"error": {"message": "Request body too large", "type": "payload_too_large"}},
@@ -235,7 +244,7 @@ def create_app(
         if not ctx.keys.auth_enabled:
             return await call_next(request)
 
-        path = request.url.path
+        path = request.url.path.rstrip("/") or "/"
         if path in AUTH_PUBLIC_PATHS:
             return await call_next(request)
 
@@ -284,8 +293,9 @@ def create_app(
                 if auth_header.startswith("Bearer ")
                 else ""
             )
-            # Use key hash as bucket id; anonymous if no key
-            key_id = raw_key if raw_key else "anonymous"
+            # P1-18: hash key for bucket id to avoid leaking raw keys in logs
+            import hashlib
+            key_id = hashlib.sha256(raw_key.encode()).hexdigest()[:16] if raw_key else "anonymous"
             allowed, retry_after = _rate_limiter.check(key_id)
             if not allowed:
                 return JSONResponse(
@@ -557,9 +567,38 @@ def _build_fallback_from_tiers(models_config: dict) -> dict:
     return chain
 
 
-# Default app instance (loads config.yaml if available)
-_models_config, _fallback_chain_config = _load_config_from_yaml()
-app = create_app(
-    models_config=_models_config,
-    fallback_chain_config=_fallback_chain_config,
-)
+# P0-5: Lazy app creation — avoids side effects at import time
+# Tests can import create_app() without triggering config loading.
+_app_instance = None
+
+
+def _get_app() -> "FastAPI":
+    """Lazily create the default app instance on first access."""
+    global _app_instance
+    if _app_instance is None:
+        _models_config, _fallback_chain_config = _load_config_from_yaml()
+        _app_instance = create_app(
+            models_config=_models_config,
+            fallback_chain_config=_fallback_chain_config,
+        )
+    return _app_instance
+
+
+# Backward-compatible module-level `app` — only created when accessed
+class _LazyApp:
+    """Proxy that defers app creation until first attribute access."""
+    _real_app = None
+
+    def _ensure(self):
+        if self._real_app is None:
+            self._real_app = _get_app()
+        return self._real_app
+
+    def __getattr__(self, name):
+        return getattr(self._ensure(), name)
+
+    def __call__(self, *args, **kwargs):
+        return self._ensure()(*args, **kwargs)
+
+
+app = _LazyApp()  # type: ignore[assignment]

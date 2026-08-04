@@ -1,5 +1,5 @@
 """
-Agent config file detector for Model Router v1.7.0.
+Agent config file detector for Model Router v1.8.0.
 
 Scans known paths for Agent configuration files and extracts
 provider/model information for Router inheritance.
@@ -104,15 +104,25 @@ def discover_agent_config(
 
 
 def _load_yaml_safe(path: Path, fmt: str = "yaml") -> Optional[dict]:
-    """Load YAML or JSON config with fallback parser."""
+    """Load YAML or JSON config with fallback parser.
+    P1-15: validate return type — non-dict results are rejected with a warning.
+    """
     try:
         text = path.read_text(encoding="utf-8")
         if fmt == "json" or path.suffix == ".json":
             import json
-            return json.loads(text) or {}
+            data = json.loads(text)
+            if not isinstance(data, dict):
+                logger.warning("Config %s root is not a dict (got %s)", path, type(data).__name__)
+                return None
+            return data
         try:
             import yaml
-            return yaml.safe_load(text) or {}
+            data = yaml.safe_load(text)
+            if not isinstance(data, dict):
+                logger.warning("Config %s root is not a dict (got %s)", path, type(data).__name__)
+                return None
+            return data
         except ImportError:
             from model_router.config.validator import _simple_yaml_load
             return _simple_yaml_load(str(path))

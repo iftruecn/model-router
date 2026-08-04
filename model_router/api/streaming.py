@@ -42,18 +42,25 @@ async def stream_model_response(
         "Accept": "text/event-stream",
     }
 
+    # P0-3: whitelist known-safe OpenAI params to prevent arbitrary
+    # request body fields from being forwarded to the provider
+    _FORWARD_FIELDS = {
+        "top_p", "frequency_penalty", "presence_penalty", "stop",
+        "n", "response_format", "seed", "tools", "tool_choice",
+        "logprobs", "top_logprobs", "logit_bias", "user",
+        "reasoning_effort",
+    }
     body = {
         "model": model_info["model"],
         "messages": request_data.get("messages", []),
         "temperature": request_data.get("temperature", 0.7),
         "max_tokens": request_data.get("max_tokens", 4096),
         "stream": True,
-        **{
-            k: v
-            for k, v in request_data.items()
-            if k not in ("messages", "model", "temperature", "max_tokens", "stream")
-        },
     }
+    # Only forward whitelisted fields
+    for field in _FORWARD_FIELDS:
+        if field in request_data:
+            body[field] = request_data[field]
 
     url = f"{model_info['base_url'].rstrip('/')}/chat/completions"
     logger.debug("Streaming from %s -> %s", model_key, url)

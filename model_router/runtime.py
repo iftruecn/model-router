@@ -1,5 +1,5 @@
 """
-Application runtime context (v1.2.0).
+Application runtime context (v1.8.0).
 
 Collects all runtime singletons into one container so that:
 - Hot reload (F8) can swap the context without touching module globals
@@ -21,18 +21,19 @@ class AppContext:
     instead of importing module-level globals.
     """
     # Core services
-    router: Any          # SmartRouter
-    learner: Any         # Learner
-    guard: Any           # DiversityGuard
-    memory: Any          # MemoryStore
+    router: Any = None          # SmartRouter
+    learner: Any = None         # Learner
+    guard: Any = None           # DiversityGuard
+    memory: Any = None          # MemoryStore
 
     # Provider layer
-    registry: Any        # ModelRegistry
-    pool: Any            # ConnectionPool
+    registry: Any = None        # ModelRegistry
+    pool: Any = None            # ConnectionPool
 
     # Auth & capabilities
-    keys: Any            # KeyManager
-    capabilities: Any    # CapabilityRegistry
+    keys: Any = None            # KeyManager
+    capabilities: Any = None    # CapabilityRegistry
+    agent_registry: Any = None  # AgentRegistry (v1.8.0 P0-1)
 
     # Config (mutable for hot reload)
     models_config: dict = None       # type: ignore[assignment]

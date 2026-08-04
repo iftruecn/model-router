@@ -1,5 +1,5 @@
 """
-Persistent memory store for Model Router v1.7.0.
+Persistent memory store for Model Router v1.8.0.
 
 Stores routing learning statistics (Gaussian TS parameters, EWMA scores,
 cost accounting) and a ring-buffered request log for feedback attribution
@@ -169,9 +169,13 @@ class MemoryStore:
 
         self._write_json(self._stats_path(), self._stats)
 
-        with open(self._log_path(), "w", encoding="utf-8") as fh:
+        # P1-19: atomic write for request log (tmp + os.replace)
+        log_path = self._log_path()
+        log_tmp = log_path + ".tmp"
+        with open(log_tmp, "w", encoding="utf-8") as fh:
             for entry in self._request_log:
                 fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        os.replace(log_tmp, log_path)
 
     async def maybe_save(self, force: bool = False) -> None:
         """Save only when dirty and due (called after each update)."""

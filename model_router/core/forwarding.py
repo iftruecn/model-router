@@ -42,14 +42,17 @@ logger = logging.getLogger(__name__)
 
 # Concurrency limiter: prevents connection pool exhaustion under load
 _forwarding_semaphore: Optional[asyncio.Semaphore] = None
-_semaphore_lock = asyncio.Lock()
+# P1-14: use threading.Lock instead of asyncio.Lock at module level
+# (asyncio.Lock at import time can fail if no event loop exists yet)
+import threading as _threading
+_semaphore_lock = _threading.Lock()
 
 
 async def _get_semaphore() -> asyncio.Semaphore:
     """Lazy-init semaphore with lock protection (must be created inside running event loop)."""
     global _forwarding_semaphore
     if _forwarding_semaphore is None:
-        async with _semaphore_lock:
+        with _semaphore_lock:
             if _forwarding_semaphore is None:
                 _forwarding_semaphore = asyncio.Semaphore(DEFAULT_FORWARDING_CONCURRENCY)
     return _forwarding_semaphore

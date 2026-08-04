@@ -75,10 +75,12 @@ def _load_yaml_builtin(path: str) -> dict:
 
 def _load_pricing_data() -> dict[str, dict[str, float]]:
     """Load pricing from YAML file. Uses PyYAML (required dependency)."""
-    # P1-6 fix: removed fragile built-in YAML parser
-    # pricing.yaml lives in project root (not config/)
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    yaml_path = os.path.join(project_root, 'pricing.yaml')
+    # P2-29: use Path for robust project root resolution (works in packages)
+    from pathlib import Path as _Path
+    # model_router/config/pricing.py -> project root is 3 levels up
+    _this_file = _Path(__file__).resolve()
+    project_root = _this_file.parent.parent.parent
+    yaml_path = str(project_root / 'pricing.yaml')
 
     if not os.path.exists(yaml_path):
         logger.warning("pricing.yaml not found at %s, cost tracking disabled", yaml_path)

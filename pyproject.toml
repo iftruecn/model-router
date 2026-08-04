@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "model-router"
-version = "1.7.0"
+version = "1.8.0"
 description = "Self-learning routing for AI agents & coding tools — picks the right model, falls back on poor output, gets smarter over time"
 readme = "README.md"
 license = {text = "MIT"}
@@ -32,7 +32,7 @@ dependencies = [
     "fastapi>=0.115.0,<1.0.0",       # 0.115+ fixes CVE-2024-47874 (path traversal)
     "httpx>=0.27.0,<1.0.0",          # 0.27+ stable, no known CVEs
     "PyYAML>=6.0.2,<7.0.0",          # 6.0.2 fixes CVE-2024-3651 (ReDoS)
-    "starlette>=1.3.1,<2.0.0",      # 1.3.1+ fixes PYSEC-2026-161/248/249/2280/2281
+    "starlette>=0.40.0,<1.0.0",     # 0.40+ required by FastAPI 0.115.x
 ]
 
 [project.optional-dependencies]

@@ -1,5 +1,5 @@
 """
-Admin API for runtime model configuration and learning control.
+Admin API for runtime model configuration and learning control (v1.8.0).
 
 Allows agents and users to configure model selection modes,
 routing presets, and submit feedback — no config file editing needed.
@@ -327,7 +327,7 @@ async def submit_feedback(request_id: str, req: FeedbackRequest, request: Reques
         raise HTTPException(
             status_code=404,
             detail=f"Request {request_id} not found in log (ring buffer holds last "
-                   f"{len(memory_store.recent_requests(1000))} entries)",
+                   f"{len(ctx.memory.recent_requests(1000))} entries)",
         )
 
     positive = req.feedback == "positive"
@@ -402,6 +402,7 @@ async def evaluate_learning(request: Request, limit: int = 1000) -> dict:
     """
     ctx: AppContext = request.app.state.ctx
     from model_router.core.evaluator import OfflineEvaluator
+    # P1-12: use ctx.memory instead of module-level singleton
     ev = OfflineEvaluator(memory=ctx.memory)
     return ev.evaluate(limit=limit)
 
@@ -738,7 +739,7 @@ async def sync_env_keys(request: Request) -> dict:
     }
 
 
-@router.get("/admin/agents")
+@router.get("/agents")
 async def admin_agents(request: Request) -> dict:
     """Agent registry stats (v1.5.0).
     

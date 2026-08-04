@@ -1,5 +1,5 @@
 """
-One-click install command for Model Router v1.7.0.
+One-click install command for Model Router v1.8.0.
 
 Automatically discovers all agents and injects Router provider config:
 - Hermes: adds to custom_providers
@@ -42,7 +42,10 @@ def _check_router_online(router_url: str) -> bool:
     """P1-2 fix: verify Router API is reachable before injecting config."""
     import urllib.request
     import urllib.error
-    health_url = router_url.rstrip("/") .rsplit("/", 1)[0] + "/health"
+    # P1-22: robust health URL construction
+    from urllib.parse import urlparse, urlunparse
+    parsed = urlparse(router_url.rstrip("/"))
+    health_url = urlunparse((parsed.scheme, parsed.netloc, "/health", "", "", ""))
     try:
         req = urllib.request.Request(health_url, method="GET")
         req.add_header("User-Agent", "model-router-install/1.6.1")
@@ -188,7 +191,7 @@ def install_agents(
 
     _print("")
     _print("=" * 56, C.GREEN + C.BOLD)
-    _print("  Model Router v1.7.0 - Agent Install", C.GREEN + C.BOLD)
+    _print("  Model Router v1.8.0 - Agent Install", C.GREEN + C.BOLD)
     _print("=" * 56, C.GREEN + C.BOLD)
     _print("")
 

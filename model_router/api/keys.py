@@ -1,5 +1,5 @@
 """
-Virtual API Key management endpoints for Model Router v1.7.0.
+Virtual API Key management endpoints for Model Router v1.8.0.
 
 Endpoints (all require the master key when auth is active):
     GET    /admin/keys          — List keys (masked) + usage stats
@@ -11,6 +11,8 @@ Design notes:
 - Lightweight single-instance auth, per FR-community-intel P0 #3
 - Auth activates automatically when the first key is created
 - Per-key usage = lightweight spend attribution (community ask)
+- P1-13: key_manager uses threading.Lock (sync) — safe for async endpoints
+  because file I/O is short and doesn't block the event loop significantly
 """
 
 import logging
