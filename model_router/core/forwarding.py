@@ -1,4 +1,4 @@
-﻿"""
+"""
 Provider forwarding layer (v1.0.7).
 
 Bridges the routing decision to actual model provider API calls.
@@ -177,7 +177,7 @@ async def _forward_non_streaming_inner(
             should_retry, category = should_fallback_on_error(status)
             if not should_retry:
                 logger.info(
-                    "Client error %s (%s) 鈥?not retrying fallback",
+                    "Client error %s (%s) — not retrying fallback",
                     status, category,
                 )
                 break
@@ -290,6 +290,7 @@ async def _forward_streaming_inner(
         routing.record_fallback(failed_models, chain[-1] if chain else routing.model_key)
 
     return error_generator(), {}
+
 
 
 # ------------------------------------------------------------------

@@ -1,5 +1,5 @@
 """
-FastAPI application factory for Model Router v1.0.3.
+FastAPI application factory for Model Router v1.0.9.
 
 Manages application lifecycle including:
 - Connection pool initialization/cleanup
@@ -90,7 +90,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             model_registry.mode,
         )
     else:
-        logger.warning("No models_config provided 鈥?registry will be empty")
+        logger.warning("No models_config provided — registry will be empty")
 
     # 3. Load persistent memory (routing learning stats + request log)
     data_dir = getattr(app.state, "data_dir", MEMORY_DEFAULT_DATA_DIR)
@@ -107,7 +107,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if key_manager.auth_enabled:
         logger.info("API key auth ACTIVE (%d keys)", len(key_manager.list_keys()))
     else:
-        logger.info("API key auth inactive (no keys configured 鈥?open access)")
+        logger.info("API key auth inactive (no keys configured — open access)")
 
     # 5. Bind capability registry to data dir + load persisted declarations
     capability_registry.bind(data_dir)
@@ -154,7 +154,7 @@ def create_app(
     app = FastAPI(
         title="Model Router",
         description=(
-            "Universal MOA (Mixture of Agents) middleware 鈥?"
+            "Universal MOA (Mixture of Agents) middleware — "
             "intelligent multi-model routing for any OpenAI-compatible agent"
         ),
         version=__version__,
@@ -170,6 +170,7 @@ def create_app(
         or MEMORY_DEFAULT_DATA_DIR
     )
     app.state.fallback_chain_config = fallback_chain_config or {}
+
 
     @app.middleware("http")
     async def body_size_limit_middleware(request: Request, call_next):

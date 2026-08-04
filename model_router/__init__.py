@@ -1,5 +1,5 @@
-﻿"""
-Model Router v1.0.1 鈥?Multi-Model Intelligent Routing Proxy
+"""
+Model Router v1.0.1 — Multi-Model Intelligent Routing Proxy
 ==========================================================
 Author:  iftrue-hermes
 License: MIT

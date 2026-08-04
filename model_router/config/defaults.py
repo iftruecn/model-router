@@ -1,4 +1,4 @@
-﻿"""
+"""
 Default configuration values for Model Router.
 
 All magic numbers and thresholds are defined here for easy configuration.
@@ -30,7 +30,7 @@ DEFAULT_MAX_FALLBACK_ATTEMPTS: int = 3
 DEFAULT_MAX_TOTAL_TIMEOUT: float = 300.0
 
 # ===============================================================
-# Classifier / 棰嗗煙缁村害
+# Classifier / 领域维度
 # ===============================================================
 
 # Supported capability domains
@@ -47,7 +47,7 @@ CLASSIFIER_LONG_CONTEXT_CHAR_COUNT: int = 500
 CLASSIFIER_ULTRA_SHORT_THRESHOLD: int = 3
 
 # ===============================================================
-# Model Registry / 妯″瀷娉ㄥ唽涓績
+# Model Registry / 模型注册中心
 # ===============================================================
 
 # Registry mode: "online", "offline", "auto" (auto = try online, fallback offline)
@@ -68,7 +68,7 @@ REGISTRY_ONLINE_WEIGHT: float = 0.7
 REGISTRY_LOCAL_WEIGHT: float = 0.3
 
 # ===============================================================
-# Smart Router / 鏅鸿兘璺敱
+# Smart Router / 智能路由
 # ===============================================================
 
 # Scoring weights (configurable)
@@ -83,7 +83,7 @@ ROUTER_MAX_COST_PER_1K: float = 0.06  # ~GPT-4o price
 ROUTER_SPEED_FAST: float = 60.0    # >= 60 rpm = fast
 ROUTER_SPEED_SLOW: float = 5.0     # <= 5 rpm = slow
 
-# Routing presets (Cursor-style 3 tiers) 鈥?capability/cost/speed weights
+# Routing presets (Cursor-style 3 tiers) — capability/cost/speed weights
 ROUTING_PRESETS: dict = {
     "intelligence": {
         "capability_weight": 1.0,
@@ -104,7 +104,7 @@ ROUTING_PRESETS: dict = {
 ROUTING_DEFAULT_PRESET: str = "balance"
 
 # ===============================================================
-# Memory Store / 鎸佷箙璁板繂 (v1.0.2)
+# Memory Store / 持久记忆 (v1.0.2)
 # ===============================================================
 
 MEMORY_SCHEMA_VERSION: int = 1
@@ -114,7 +114,7 @@ MEMORY_SAVE_INTERVAL: int = 10       # persist every N requests
 MEMORY_DEFAULT_DATA_DIR: str = "data"
 
 # ===============================================================
-# Learner / 鑷涔?(v1.0.2, Gaussian Thompson Sampling)
+# Learner / 自学习 (v1.0.2, Gaussian Thompson Sampling)
 # ===============================================================
 
 LEARNER_PRIOR_K: float = 10.0        # Bayesian prior strength
@@ -136,7 +136,7 @@ DIVERSITY_DOMINANCE_THRESHOLD: float = 0.9   # one model > 90% -> degraded
 DIVERSITY_EXPLORE_RATE: float = 0.05         # force >= 5% exploration picks
 
 # ===============================================================
-# Virtual API Keys / 铏氭嫙瀵嗛挜 (v1.0.3, P0 #3)
+# Virtual API Keys / 虚拟密钥 (v1.0.3, P0 #3)
 # ===============================================================
 
 AUTH_KEY_PREFIX: str = "mr-sk-"      # OpenAI-style recognizable prefix
@@ -155,8 +155,8 @@ AUTH_PUBLIC_PATHS: tuple = ("/health", "/", "/docs", "/openapi.json", "/redoc")
 
 CAPABILITIES_TIMEOUT_MS: int = 200   # per-borrow-call timeout ceiling
 CAPABILITIES_FILE: str = "capabilities.json"      # persisted declaration
-CAPABILITY_EVENTS_MAX: int = 200     # audit ring size (FR-鐑劅鐭?搂3)
-# Which enhancement points may use borrowed capabilities (FR 搂2.2)
+CAPABILITY_EVENTS_MAX: int = 200     # audit ring size (FR-热感知 §3)
+# Which enhancement points may use borrowed capabilities (FR §2.2)
 CAPABILITIES_USE_FOR: dict = {
     "classification": True,   # vector-assisted classification
     "preference": True,       # read user preference from agent memory
@@ -164,7 +164,7 @@ CAPABILITIES_USE_FOR: dict = {
 }
 
 # ===============================================================
-# Semantic Cache / 璇箟缂撳瓨 (FR-Qoder-v2-platform 搂FR-P1)
+# Semantic Cache / 语义缓存 (FR-Qoder-v2-platform §FR-P1)
 # ===============================================================
 
 CACHE_ENABLED: bool = True
