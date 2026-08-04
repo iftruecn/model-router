@@ -33,6 +33,7 @@ from model_router.config.defaults import (
     MAX_REQUEST_BODY_SIZE,
 )
 from model_router.runtime import AppContext
+from model_router.core.rate_limit import _rate_limiter
 from model_router.core.auth import key_manager
 from model_router.core.capabilities import capability_registry
 from model_router.core.memory import memory_store
@@ -264,6 +265,38 @@ def create_app(
 
         return response
 
+
+    @app.middleware("http")
+    async def rate_limit_middleware(request: Request, call_next):
+        """Per-key rate limiting (v1.3.0).
+
+        Note: runs before auth_middleware (Starlette LIFO), so we extract
+        key from Authorization header directly instead of request.state.
+        """
+        if _rate_limiter._enabled and request.method in ("POST", "GET"):
+            auth_header = request.headers.get("Authorization", "")
+            raw_key = (
+                auth_header.removeprefix("Bearer ").strip()
+                if auth_header.startswith("Bearer ")
+                else ""
+            )
+            # Use key hash as bucket id; anonymous if no key
+            key_id = raw_key if raw_key else "anonymous"
+            allowed, retry_after = _rate_limiter.check(key_id)
+            if not allowed:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "message": "Rate limit exceeded. Try again later.",
+                            "type": "rate_limit_exceeded",
+                            "retry_after": round(retry_after, 1),
+                        }
+                    },
+                    status_code=429,
+                    headers={"Retry-After": str(int(retry_after) + 1)},
+                )
+        return await call_next(request)
+
     # Register admin routes (runtime model configuration + learning)
     from model_router.api.admin import router as admin_router
     app.include_router(admin_router)
@@ -345,13 +378,25 @@ def _load_config_from_yaml() -> tuple[dict, dict]:
     """
     Load models_config and fallback_chain from config.yaml if it exists.
 
+    If config.yaml doesn't exist, try auto-generating from environment
+    variable API keys (v1.3.0 Agent Key auto-inheritance).
+
     Returns (models_config, fallback_chain_config).
     """
     from pathlib import Path
 
     config_path = Path("config.yaml")
     if not config_path.exists():
-        return {}, {}
+        # Auto-generate from environment variables (v1.3.0)
+        try:
+            from model_router.config.auto_config import auto_generate_config
+            if auto_generate_config():
+                logger.info("Auto-generated config.yaml from environment keys")
+            else:
+                return {}, {}
+        except Exception as exc:
+            logger.debug("Auto-config skipped: %s", exc)
+            return {}, {}
 
     try:
         import yaml

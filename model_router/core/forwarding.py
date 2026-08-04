@@ -283,10 +283,14 @@ async def _forward_streaming_inner(
         if failed_models:
             routing.record_fallback(failed_models, model_key)
 
-        generator = stream_model_response(
+        raw_generator = stream_model_response(
             model_key=model_key,
             model_info=model_info,
             request_data=request_data,
+        )
+        # Wrap with async quality check (v1.3.0): collect chunks, check after stream
+        generator = _stream_with_quality_check(
+            raw_generator, model_key, request_id, models_config,
         )
         return generator, {}
 
@@ -306,6 +310,72 @@ async def _forward_streaming_inner(
 
     return error_generator(), {}
 
+
+
+
+async def _stream_with_quality_check(
+    raw_generator: AsyncGenerator,
+    model_key: str,
+    request_id: str,
+    models_config: dict,
+) -> AsyncGenerator:
+    """Wrap streaming generator with post-stream quality check (v1.3.0).
+
+    Yields all chunks from raw_generator, collects text, then runs
+    quality_checker.check() after stream ends.  Best-effort: errors
+    are logged but never raised (must not break the stream).
+    """
+    collected_text: list[str] = []
+
+    try:
+        async for chunk in raw_generator:
+            # Try to extract text delta from SSE chunk
+            if isinstance(chunk, str) and chunk.startswith("data: "):
+                payload = chunk[6:].strip()
+                if payload and payload != "[DONE]":
+                    try:
+                        data = json.loads(payload)
+                        delta = (
+                            data.get("choices", [{}])[0]
+                            .get("delta", {})
+                        )
+                        text = delta.get("content", "")
+                        if text:
+                            collected_text.append(text)
+                    except (json.JSONDecodeError, IndexError, KeyError):
+                        pass
+            yield chunk
+    except Exception:
+        # Stream error — yield what we have, log, and stop
+        logger.warning("Stream error for %s, quality check skipped", model_key)
+        raise
+
+    # Stream finished — run quality check (best-effort)
+    try:
+        full_text = "".join(collected_text)
+        if full_text.strip():
+            result = quality_checker.check(
+                response_text=full_text,
+                model_key=model_key,
+                models_config=models_config,
+            )
+            logger.info(
+                "Stream quality check %s for %s: %s",
+                "passed" if result.passed else "FAILED",
+                model_key,
+                result.reason,
+            )
+            # Annotate request log (best-effort)
+            try:
+                entry = memory_store.get_request(request_id)
+                if entry is not None:
+                    entry["stream_quality_passed"] = result.passed
+                    entry["stream_quality_reason"] = result.reason
+                    await memory_store.save()
+            except Exception:
+                pass
+    except Exception:
+        logger.debug("Post-stream quality check failed for %s", model_key)
 
 
 # ------------------------------------------------------------------
