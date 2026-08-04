@@ -1,5 +1,5 @@
 """
-Agent configuration auto-discovery for Model Router v1.5.0.
+Agent configuration auto-discovery for Model Router v1.6.1.
 
 Discovers ALL agent configurations on the system (not just the first one).
 Supports:
@@ -47,14 +47,13 @@ AGENT_TYPES = {
 }
 
 # Directories to scan for agent configs (common AI data locations)
+# P3-1 fix: use Path.home()-based cross-platform paths
 SCAN_ROOT_DIRS = [
     Path.home() / ".openclaw",
     Path.home() / ".config" / "openclaw",
     Path.home() / ".hermes",
-    Path("E:\\AI") / "HermesData",
-    Path("E:\\AI") / "LobsterAIData",
-    Path("D:\\AI") / "HermesData",
-    Path("D:\\AI") / "LobsterAIData",
+    Path.home() / "HermesData",
+    Path.home() / "LobsterAIData",
 ]
 
 # Process names to look for when scanning running processes

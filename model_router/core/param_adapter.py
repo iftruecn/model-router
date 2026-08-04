@@ -1,5 +1,5 @@
 """
-Request parameter adaptation for Model Router v1.4.0.
+Request parameter adaptation for Model Router v1.6.1.
 
 Different providers support different parameter names and values.
 This module normalizes parameters before forwarding and downgrades
@@ -95,7 +95,8 @@ def _detect_provider(base_url: str) -> str:
         return "anthropic"
     if "google" in url_lower or "generativelanguage" in url_lower:
         return "google"
-    if "volces" in url_lower or "doubao" in url_lower or "ark" in url_lower:
+    # P3-5 fix: "ark" is too short — require "/ark/" or "volcengine" to avoid false positives
+    if "volces" in url_lower or "doubao" in url_lower or "/ark/" in url_lower or "volcengine" in url_lower:
         return "doubao"
     if "mistral" in url_lower:
         return "mistral"

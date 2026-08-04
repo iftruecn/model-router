@@ -1,5 +1,5 @@
 """
-Self-learning engine for Model Router v1.2.0.
+Self-learning engine for Model Router v1.6.1.
 
 Implements the learning loop approved in FR-持久记忆与自学习 with the
 math refinements from Hermes' deep review (REVIEW-math-deep-dive.md):
@@ -337,16 +337,21 @@ class DiversityGuard:
 
     def record(self, task: str, model: str) -> None:
         """Record one routing selection."""
-        # P2-11: evict stale tasks when history dict grows too large
+        # P2-11 + P3-3 fix: evict stale tasks, but protect recently active ones
         if task not in self._history and len(self._history) >= self._MAX_TASKS:
-            # Remove oldest tasks (by deque emptiness or least recent)
+            # Phase 1: remove tasks with empty deques (no recent activity)
             stale = [t for t, h in self._history.items() if not h]
             for t in stale[:len(stale) // 2]:
                 del self._history[t]
-            # If still full, remove tasks with shortest histories
+            # Phase 2: if still full, remove tasks with shortest histories
+            # but skip the newest half (by insertion order) to avoid premature eviction
             if len(self._history) >= self._MAX_TASKS:
-                sorted_tasks = sorted(self._history, key=lambda t: len(self._history[t]))
-                for t in sorted_tasks[:len(sorted_tasks) // 4]:
+                tasks_by_len = sorted(self._history, key=lambda t: len(self._history[t]))
+                # Only evict from the oldest half (first half of dict keys)
+                all_tasks = list(self._history.keys())
+                older_half = set(all_tasks[:len(all_tasks) // 2])
+                evictable = [t for t in tasks_by_len if t in older_half]
+                for t in evictable[:len(evictable) // 2]:
                     del self._history[t]
         hist = self._history.setdefault(task, deque(maxlen=self._window))
         hist.append(model)

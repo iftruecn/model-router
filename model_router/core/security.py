@@ -1,5 +1,5 @@
 """
-Security utilities for Model Router v1.3.0.
+Security utilities for Model Router v1.6.1.
 
 API key masking (desensitization) and environment key sync.
 """

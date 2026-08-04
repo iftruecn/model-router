@@ -740,9 +740,11 @@ async def sync_env_keys(request: Request) -> dict:
 
 @router.get("/admin/agents")
 async def admin_agents(request: Request) -> dict:
-    """Agent registry stats (v1.5.0)."""
-    from model_router.core.agent_registry import get_agent_registry
-    registry = get_agent_registry()
-    stats = registry.get_agent_stats()
+    """Agent registry stats (v1.5.0).
+    
+    P1-1 fix: use AppContext for consistency with other endpoints.
+    """
+    ctx: AppContext = request.app.state.ctx
+    stats = ctx.agent_registry.get_agent_stats()
     return {"agents": stats}
 

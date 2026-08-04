@@ -1,5 +1,5 @@
 """
-One-click install command for Model Router v1.5.0.
+One-click install command for Model Router v1.6.1.
 
 Automatically discovers all agents and injects Router provider config:
 - Hermes: adds to custom_providers
@@ -38,9 +38,30 @@ def _print(msg, color=""):
     print("{}{}{}".format(color, msg, C.RESET if color else ""))
 
 
+def _check_router_online(router_url: str) -> bool:
+    """P1-2 fix: verify Router API is reachable before injecting config."""
+    import urllib.request
+    import urllib.error
+    health_url = router_url.rstrip("/") .rsplit("/", 1)[0] + "/health"
+    try:
+        req = urllib.request.Request(health_url, method="GET")
+        req.add_header("User-Agent", "model-router-install/1.6.1")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status == 200:
+                return True
+    except (urllib.error.URLError, OSError, Exception) as exc:
+        _print("  Router health check failed: {}".format(exc), C.YELLOW)
+    return False
+
+
 def _backup_file(path):
-    """Create a backup of the file before modifying."""
-    bak = path.with_suffix(path.suffix + ".bak")
+    """Create a timestamped backup of the file before modifying.
+    
+    P3-2 fix: include timestamp to avoid overwriting previous backups.
+    """
+    from datetime import datetime
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    bak = path.with_suffix(path.suffix + ".bak." + ts)
     shutil.copy2(str(path), str(bak))
     _print("  Backup: {}".format(bak), C.DIM)
     return bak
@@ -101,13 +122,24 @@ def _inject_hermes(config_path, router_key, router_url="http://127.0.0.1:6060/v1
 
 
 def _inject_openclaw(config_path, router_key, router_url="http://127.0.0.1:6060/v1"):
-    """Inject Router provider into OpenClaw config (models.providers.router)."""
+    """Inject Router provider into OpenClaw config (models.providers.router).
+    
+    P1-3 fix: validate JSON before modification, preserve structure on error.
+    """
     # Backup
     _backup_file(config_path)
 
-    # Load
+    # Load with validation
     text = config_path.read_text(encoding="utf-8")
-    config = json.loads(text)
+    try:
+        config = json.loads(text)
+    except json.JSONDecodeError as exc:
+        _print("ERROR: Invalid JSON in {}: {}".format(config_path, exc), C.RED)
+        _print("Fix the JSON syntax and retry.", C.RED)
+        return False
+    if not isinstance(config, dict):
+        _print("ERROR: Config root is not a JSON object", C.RED)
+        return False
 
     # Ensure models.providers exists
     models_section = config.setdefault("models", {})
@@ -192,6 +224,22 @@ def install_agents(
         if answer.lower() in ("n", "no"):
             _print("Cancelled.", C.YELLOW)
             return False
+
+    # Step 3.5: Verify Router is online (P1-2)
+    _print("")
+    _print("Checking Router availability...", C.CYAN)
+    if not _check_router_online(router_url):
+        _print("WARNING: Router does not appear to be running at {}".format(router_url), C.YELLOW)
+        _print("Config will be injected anyway, but restart Router to activate.", C.YELLOW)
+        if not auto_confirm:
+            try:
+                answer = input("{}Continue anyway? [y/N] {}".format(C.YELLOW, C.RESET)).strip()
+            except (EOFError, KeyboardInterrupt):
+                _print("")
+                return False
+            if answer.lower() not in ("y", "yes"):
+                _print("Cancelled.", C.YELLOW)
+                return False
 
     # Step 4: Generate keys and inject
     registry = get_agent_registry()

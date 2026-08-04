@@ -1,5 +1,5 @@
 """
-Cost & learning dashboard for Model Router v1.2.0.
+Cost & learning dashboard for Model Router v1.6.1.
 
 Self-contained single-page dashboard (no CDN, no build step):
 answers the community's #1 question — "how much money did I save?"

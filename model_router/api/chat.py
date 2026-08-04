@@ -1,5 +1,5 @@
 """
-Chat completions route for Model Router v1.2.0.
+Chat completions route for Model Router v1.6.1.
 
 Handles both streaming and non-streaming requests,
 integrating with the core router for model selection and fallback,

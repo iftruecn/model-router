@@ -1,5 +1,5 @@
 """
-Agent Key auto-inheritance for Model Router v1.3.0.
+Agent Key auto-inheritance for Model Router v1.6.1.
 
 On startup, if config.yaml doesn't exist:
 1. Scan environment variables for known API keys

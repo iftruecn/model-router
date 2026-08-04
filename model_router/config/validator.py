@@ -1,5 +1,5 @@
 """
-Configuration validation for Model Router (v1.2.0).
+Configuration validation for Model Router (v1.6.1).
 
 Pure-Python config validator using dataclasses.
 No pydantic, no external dependencies.

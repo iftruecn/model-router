@@ -1,5 +1,5 @@
 """
-Smart routing engine for Model Router v1.2.0.
+Smart routing engine for Model Router v1.6.1.
 
 Combines query feature extraction (classifier) with model capability
 profiles (registry) to select the best model for each query.
@@ -25,7 +25,6 @@ New code should prefer dependency injection via AppContext where possible.
 
 import logging
 import random
-import numpy as np
 import time
 from dataclasses import dataclass, field
 from typing import Optional
