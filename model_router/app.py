@@ -131,6 +131,7 @@ def create_app(
     models_config: Optional[dict] = None,
     registry_mode: str = DEFAULT_REGISTRY_MODE,
     data_dir: Optional[str] = None,
+    fallback_chain_config: Optional[dict] = None,
 ) -> FastAPI:
     """
     Create and configure the FastAPI application.
@@ -141,6 +142,8 @@ def create_app(
         registry_mode: "online", "offline", or "auto"
         data_dir: Persistent memory directory (default: ./data or
                   $MODEL_ROUTER_DATA_DIR)
+        fallback_chain_config: Fallback chain mapping (from config.yaml).
+                               Maps model_key -> [fallback_model_keys].
 
     Returns:
         FastAPI: Configured application instance
@@ -165,6 +168,7 @@ def create_app(
         or os.environ.get("MODEL_ROUTER_DATA_DIR")
         or MEMORY_DEFAULT_DATA_DIR
     )
+    app.state.fallback_chain_config = fallback_chain_config or {}
 
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next):
@@ -306,5 +310,36 @@ def create_app(
     return app
 
 
-# Default app instance (for direct import, no models config)
-app = create_app()
+def _load_config_from_yaml() -> tuple[dict, dict]:
+    """
+    Load models_config and fallback_chain from config.yaml if it exists.
+
+    Returns (models_config, fallback_chain_config).
+    """
+    from pathlib import Path
+
+    config_path = Path("config.yaml")
+    if not config_path.exists():
+        return {}, {}
+
+    try:
+        import yaml
+        data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+        models = data.get("models", {})
+        fallback_chain = data.get("fallback_chain", {})
+        logger.info(
+            "Loaded config.yaml: %d models, %d fallback entries",
+            len(models), len(fallback_chain),
+        )
+        return models, fallback_chain
+    except Exception as exc:
+        logger.warning("Failed to load config.yaml: %s", exc)
+        return {}, {}
+
+
+# Default app instance (loads config.yaml if available)
+_models_config, _fallback_chain_config = _load_config_from_yaml()
+app = create_app(
+    models_config=_models_config,
+    fallback_chain_config=_fallback_chain_config,
+)

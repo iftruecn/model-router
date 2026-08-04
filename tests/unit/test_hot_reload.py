@@ -189,7 +189,7 @@ def test_chat_endpoint_inband_sensing(client, tmp_path):
             "X-Agent-Capabilities-Full": _b64(SPEC_A),
         },
     )
-    assert r.status_code == 501  # provider forwarding still pending
+    assert r.status_code == 502  # forwarding attempted but no real model configured
     assert capability_registry.enabled is True
     assert capability_registry.agent_id == "hermes"
     assert capability_registry.fingerprint == fp

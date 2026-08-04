@@ -135,10 +135,8 @@ ANSWER = {"choices": [{"message": {"role": "assistant", "content": "Paris"}}]}
 
 
 # The three integration tests below exercise the full TestClient + app lifespan.
-# They pass locally but have been observed to hang in some environments (Hermes
-# review 2026-08-04) until the provider forwarding layer lands. Skipped for now;
-# re-enable once `/v1/chat/completions` returns real responses.
-@pytest.mark.skip(reason="requires forwarding layer — hang in some envs until then")
+# They were skipped previously (REVIEW-cache) but re-enabled after the
+# forwarding layer landed in v1.0.7.
 def test_cache_admin_roundtrip(client):
     r = client.get("/admin/cache")
     assert r.status_code == 200 and r.json()["entries"] == 0
@@ -157,7 +155,6 @@ def test_cache_admin_roundtrip(client):
     assert r.json()["cleared"] == 1
 
 
-@pytest.mark.skip(reason="requires forwarding layer — hang in some envs until then")
 def test_chat_cache_hit_short_circuit(client):
     client.post("/admin/cache/seed", json={
         "messages": [{"role": "user", "content": "what is the capital of france?"}],
@@ -173,13 +170,12 @@ def test_chat_cache_hit_short_circuit(client):
     assert r.json() == ANSWER
 
 
-@pytest.mark.skip(reason="requires forwarding layer — hang in some envs until then")
 def test_chat_cache_miss_falls_through(client):
     r = client.post(
         "/v1/chat/completions",
         json={"messages": [{"role": "user", "content": "a completely different question"}]},
     )
-    assert r.status_code == 501  # normal routing path (forwarding pending)
+    assert r.status_code == 502  # forwarding attempted but no real model configured
 
 
 def test_streaming_bypasses_cache(client):

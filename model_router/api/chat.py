@@ -1,13 +1,14 @@
 """
-Chat completions route for Model Router v1.0.2.
+Chat completions route for Model Router v1.0.7.
 
 Handles both streaming and non-streaming requests,
-integrating with the core router for model selection and fallback.
+integrating with the core router for model selection and fallback,
+and the forwarding layer for actual provider API calls.
 
 v1.0.2: real routing decision + transparency headers
 (X-Routed-To / X-Routing-Reason / X-Routing-Mode / X-Routing-Preset).
 v1.0.4+: in-band capability hot sensing via X-Agent-Capabilities headers.
-Provider forwarding follows in the streaming integration task.
+v1.0.7: provider forwarding layer with fallback chain execution.
 """
 
 import logging
@@ -16,9 +17,9 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from model_router.api.streaming import stream_model_response
 from model_router.core.cache import semantic_cache
 from model_router.core.capabilities import capability_registry
+from model_router.core.forwarding import forward_non_streaming, forward_streaming
 from model_router.core.router import RoutingResult, smart_router
 
 logger = logging.getLogger(__name__)
@@ -98,6 +99,7 @@ async def chat_completions(request: Request) -> Any:
             )
 
     models_config = getattr(request.app.state, "models_config", {})
+    fallback_chain_config = getattr(request.app.state, "fallback_chain_config", {})
 
     logger.info(
         "Request %s: stream=%s, messages=%d",
@@ -115,52 +117,79 @@ async def chat_completions(request: Request) -> Any:
     )
 
     if is_streaming:
-        return await _handle_streaming(request_data, request_id, routing)
+        return await _handle_streaming(
+            request, request_data, request_id, routing,
+            models_config, fallback_chain_config,
+        )
     else:
-        return await _handle_non_streaming(request_data, request_id, routing)
+        return await _handle_non_streaming(
+            request, request_data, request_id, routing,
+            models_config, fallback_chain_config,
+        )
 
 
 async def _handle_streaming(
-    request_data: dict, request_id: str, routing: RoutingResult
+    request: Request,
+    request_data: dict,
+    request_id: str,
+    routing: RoutingResult,
+    models_config: dict,
+    fallback_chain_config: dict,
 ) -> StreamingResponse:
-    """Handle streaming chat completion request."""
+    """Handle streaming chat completion request via forwarding layer."""
     logger.info(
         "Streaming request %s routed to %s (mode=%s)",
         request_id, routing.model_key, routing.routing_mode,
     )
 
-    # Placeholder: provider forwarding lands in the streaming integration task
-    async def generate():
-        yield 'data: {"error": {"message": "Router integration pending", "type": "not_implemented"}}\n\n'
-        yield "data: [DONE]\n\n"
+    generator, extra_headers = await forward_streaming(
+        request_data=request_data,
+        request_id=request_id,
+        routing=routing,
+        models_config=models_config,
+        fallback_chain_config=fallback_chain_config,
+    )
 
     headers = {
         "Cache-Control": "no-cache",
         "Connection": "keep-alive",
         "X-Request-Id": request_id,
         **routing.to_headers(),
+        **(extra_headers or {}),
     }
-    return StreamingResponse(generate(), media_type="text/event-stream", headers=headers)
+    return StreamingResponse(generator, media_type="text/event-stream", headers=headers)
 
 
 async def _handle_non_streaming(
-    request_data: dict, request_id: str, routing: RoutingResult
+    request: Request,
+    request_data: dict,
+    request_id: str,
+    routing: RoutingResult,
+    models_config: dict,
+    fallback_chain_config: dict,
 ) -> JSONResponse:
-    """Handle non-streaming chat completion request."""
+    """Handle non-streaming chat completion request via forwarding layer."""
     logger.info(
         "Non-streaming request %s routed to %s (mode=%s)",
         request_id, routing.model_key, routing.routing_mode,
     )
 
-    headers = {"X-Request-Id": request_id, **routing.to_headers()}
-    return JSONResponse(
-        {
-            "error": {
-                "message": "Router integration pending",
-                "type": "not_implemented",
-            },
-            "routing": routing.to_dict(),
-        },
-        status_code=501,
-        headers=headers,
+    response_body, extra_headers = await forward_non_streaming(
+        request_data=request_data,
+        request_id=request_id,
+        routing=routing,
+        models_config=models_config,
+        fallback_chain_config=fallback_chain_config,
     )
+
+    headers = {
+        "X-Request-Id": request_id,
+        **routing.to_headers(),
+        **(extra_headers or {}),
+    }
+
+    # Check if response is an error
+    if "error" in response_body:
+        return JSONResponse(response_body, status_code=502, headers=headers)
+
+    return JSONResponse(response_body, status_code=200, headers=headers)
