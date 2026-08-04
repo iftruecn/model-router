@@ -1,5 +1,5 @@
 """
-Chat completions route for Model Router v1.0.7.
+Chat completions route for Model Router v1.0.9.
 
 Handles both streaming and non-streaming requests,
 integrating with the core router for model selection and fallback,
@@ -9,6 +9,7 @@ v1.0.2: real routing decision + transparency headers
 (X-Routed-To / X-Routing-Reason / X-Routing-Mode / X-Routing-Preset).
 v1.0.4+: in-band capability hot sensing via X-Agent-Capabilities headers.
 v1.0.7: provider forwarding layer with fallback chain execution.
+v1.0.9: streaming routing header annotation (X-Routing-Mode: streaming).
 """
 
 import logging
@@ -155,6 +156,7 @@ async def _handle_streaming(
         "Connection": "keep-alive",
         "X-Request-Id": request_id,
         **routing.to_headers(),
+        "X-Routing-Mode": "streaming",  # override: streaming mode
         **(extra_headers or {}),
     }
     return StreamingResponse(generator, media_type="text/event-stream", headers=headers)

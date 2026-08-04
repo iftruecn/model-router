@@ -14,7 +14,10 @@ def pool():
     return ConnectionPool(
         max_connections=10,
         max_keepalive_connections=5,
-        timeout=30.0,
+        connect_timeout=5.0,
+        read_timeout=30.0,
+        write_timeout=5.0,
+        pool_timeout=5.0,
     )
 
 

@@ -3,6 +3,8 @@ Global HTTP connection pool for Model Router.
 
 Manages httpx.AsyncClient instances with connection pooling,
 grouped by base_url for efficient TCP connection reuse.
+
+v1.0.9: Tiered timeouts (connect=10s, read=60s, write=10s, pool=10s).
 """
 
 import logging
@@ -10,6 +12,15 @@ from typing import Optional
 from urllib.parse import urlparse
 
 import httpx
+
+from model_router.config.defaults import (
+    DEFAULT_MAX_CONNECTIONS,
+    DEFAULT_MAX_KEEPALIVE_CONNECTIONS,
+    DEFAULT_CONNECT_TIMEOUT,
+    DEFAULT_READ_TIMEOUT,
+    DEFAULT_WRITE_TIMEOUT,
+    DEFAULT_POOL_TIMEOUT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -20,17 +31,26 @@ class ConnectionPool:
 
     Maintains a pool of httpx.AsyncClient instances, one per unique base_url.
     Uses FastAPI lifespan for initialization and cleanup.
+    Uses tiered timeouts (v1.0.9): connect=10s, read=60s, write=10s, pool=10s.
     """
 
     def __init__(
         self,
-        max_connections: int = 100,
-        max_keepalive_connections: int = 20,
-        timeout: float = 120.0,
+        max_connections: int = DEFAULT_MAX_CONNECTIONS,
+        max_keepalive_connections: int = DEFAULT_MAX_KEEPALIVE_CONNECTIONS,
+        connect_timeout: float = DEFAULT_CONNECT_TIMEOUT,
+        read_timeout: float = DEFAULT_READ_TIMEOUT,
+        write_timeout: float = DEFAULT_WRITE_TIMEOUT,
+        pool_timeout: float = DEFAULT_POOL_TIMEOUT,
     ):
         self._max_connections = max_connections
         self._max_keepalive = max_keepalive_connections
-        self._timeout = timeout
+        self._timeout = httpx.Timeout(
+            connect=connect_timeout,
+            read=read_timeout,
+            write=write_timeout,
+            pool=pool_timeout,
+        )
         self._clients: dict[str, httpx.AsyncClient] = {}
         self._initialized = False
 
@@ -38,9 +58,14 @@ class ConnectionPool:
         """Initialize the connection pool. Called on app startup."""
         self._initialized = True
         logger.info(
-            "Connection pool initialized (max_connections=%d, max_keepalive=%d)",
+            "Connection pool initialized (max_connections=%d, max_keepalive=%d, "
+            "timeout: connect=%.0fs read=%.0fs write=%.0fs pool=%.0fs)",
             self._max_connections,
             self._max_keepalive,
+            self._timeout.connect,
+            self._timeout.read,
+            self._timeout.write,
+            self._timeout.pool,
         )
 
     async def close(self) -> None:
@@ -75,7 +100,7 @@ class ConnectionPool:
                 max_keepalive_connections=self._max_keepalive,
             )
             self._clients[key] = httpx.AsyncClient(
-                timeout=httpx.Timeout(self._timeout),
+                timeout=self._timeout,
                 limits=limits,
             )
             logger.debug("Created connection pool for %s", key)
@@ -90,7 +115,12 @@ class ConnectionPool:
             "config": {
                 "max_connections": self._max_connections,
                 "max_keepalive_connections": self._max_keepalive,
-                "timeout": self._timeout,
+                "timeout": {
+                    "connect": self._timeout.connect,
+                    "read": self._timeout.read,
+                    "write": self._timeout.write,
+                    "pool": self._timeout.pool,
+                },
             },
             "pools_detail": {
                 key: {"is_closed": client.is_closed}

@@ -16,6 +16,7 @@ Design constraints:
 - Cache auto-fill only happens for non-streaming successful responses
 """
 
+import asyncio
 import json
 import logging
 import time
@@ -23,6 +24,7 @@ from typing import AsyncGenerator, Optional
 
 import httpx
 
+from model_router.config.defaults import DEFAULT_FORWARDING_CONCURRENCY
 from model_router.core.cache import semantic_cache
 from model_router.core.fallback import (
     FallbackManager,
@@ -34,6 +36,17 @@ from model_router.core.router import RoutingResult, smart_router
 from model_router.providers.pool import pool
 
 logger = logging.getLogger(__name__)
+
+# Concurrency limiter: prevents connection pool exhaustion under load
+_forwarding_semaphore: Optional[asyncio.Semaphore] = None
+
+
+def _get_semaphore() -> asyncio.Semaphore:
+    """Lazy-init semaphore (must be created inside running event loop)."""
+    global _forwarding_semaphore
+    if _forwarding_semaphore is None:
+        _forwarding_semaphore = asyncio.Semaphore(DEFAULT_FORWARDING_CONCURRENCY)
+    return _forwarding_semaphore
 
 
 # ------------------------------------------------------------------
@@ -56,6 +69,24 @@ async def forward_non_streaming(
     """
     fallback_chain_config = fallback_chain_config or {}
     start_time = time.time()
+    sem = _get_semaphore()
+
+    async with sem:
+        return await _forward_non_streaming_inner(
+            request_data, request_id, routing, models_config,
+            fallback_chain_config, start_time,
+        )
+
+
+async def _forward_non_streaming_inner(
+    request_data: dict,
+    request_id: str,
+    routing: RoutingResult,
+    models_config: dict,
+    fallback_chain_config: dict,
+    start_time: float,
+) -> tuple[dict, dict]:
+    """Inner implementation of non-streaming forwarding (under semaphore)."""
 
     # Build fallback chain: primary + fallbacks
     chain = fallback_manager.build_chain(
@@ -157,6 +188,24 @@ async def forward_streaming(
     from model_router.api.streaming import stream_model_response
 
     fallback_chain_config = fallback_chain_config or {}
+    sem = _get_semaphore()
+
+    async with sem:
+        return await _forward_streaming_inner(
+            request_data, request_id, routing, models_config,
+            fallback_chain_config, stream_model_response,
+        )
+
+
+async def _forward_streaming_inner(
+    request_data: dict,
+    request_id: str,
+    routing: RoutingResult,
+    models_config: dict,
+    fallback_chain_config: dict,
+    stream_model_response,
+) -> tuple[Optional[AsyncGenerator], Optional[dict]]:
+    """Inner implementation of streaming forwarding (under semaphore)."""
 
     # Build fallback chain
     chain = fallback_manager.build_chain(
