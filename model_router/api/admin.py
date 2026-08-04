@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field
 from model_router.config.defaults import ROUTING_PRESETS
 from model_router.config.validator import validate_config
 from model_router.runtime import AppContext
+from model_router.core.security import env_key_sync, mask_key, mask_config_keys
 from model_router.core.cache import semantic_cache
 from model_router.core.capabilities import capability_registry
 from model_router.core.evaluator import offline_evaluator
@@ -657,4 +658,81 @@ async def cache_seed(req: CacheSeedRequest) -> dict:
         "stored": stored,
         "key": semantic_cache.build_key(req.messages) if stored else "",
         "stats": semantic_cache.get_stats(),
+    }
+
+
+@router.get("/config/keys")
+async def list_config_keys(request: Request) -> dict:
+    """
+    List configured API keys (masked) for security audit.
+
+    Returns masked keys — never exposes actual values.
+    """
+    ctx: AppContext = request.app.state.ctx
+    models_config = ctx.models_config
+    result = {}
+    for key, cfg in models_config.items():
+        raw_key = cfg.get("api_key", "")
+        result[key] = {
+            "name": cfg.get("name", key),
+            "base_url": cfg.get("base_url", ""),
+            "api_key_masked": mask_key(raw_key) if raw_key else "(not set)",
+            "model": cfg.get("model", key),
+            "tier": cfg.get("tier", "pro"),
+        }
+    return result
+
+
+@router.post("/config/sync-keys")
+async def sync_env_keys(request: Request) -> dict:
+    """
+    Check environment variables for API key changes and reload.
+
+    If agent's API key has changed (env var updated), this picks up
+    the new key and updates the in-memory config.
+
+    Returns which keys changed and whether config was reloaded.
+    """
+    ctx: AppContext = request.app.state.ctx
+    changed = env_key_sync.check()
+
+    if not changed:
+        return {"changed": [], "reloaded": False, "message": "No changes detected"}
+
+    # Re-scan env vars
+    from model_router.config.auto_config import scan_env_keys, KNOWN_KEYS
+    new_keys = scan_env_keys()
+
+    updated_models = []
+    for env_var in changed:
+        base_url = KNOWN_KEYS.get(env_var, "")
+        new_key_value = new_keys.get(env_var, "")
+
+        # Update models that use this provider
+        for model_key, model_cfg in ctx.models_config.items():
+            if model_cfg.get("base_url", "") == base_url:
+                if new_key_value:
+                    model_cfg["api_key"] = new_key_value
+                    updated_models.append(model_key)
+                    logger.info(
+                        "Updated API key for %s (%s)",
+                        model_key, mask_key(new_key_value),
+                    )
+                else:
+                    logger.warning(
+                        "Key removed for %s (env %s deleted)",
+                        model_key, env_var,
+                    )
+
+    env_key_sync.update_snapshot()
+
+    return {
+        "changed": changed,
+        "reloaded": len(updated_models) > 0,
+        "updated_models": updated_models,
+        "message": (
+            f"Updated {len(updated_models)} model(s)"
+            if updated_models
+            else "No models updated"
+        ),
     }

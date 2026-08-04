@@ -1,5 +1,5 @@
 """
-FastAPI application factory for Model Router v1.2.0.
+FastAPI application factory for Model Router v1.4.0.
 
 Manages application lifecycle including:
 - Connection pool initialization/cleanup
@@ -34,6 +34,7 @@ from model_router.config.defaults import (
 )
 from model_router.runtime import AppContext
 from model_router.core.rate_limit import _rate_limiter
+from model_router.core.security import env_key_sync, mask_key
 from model_router.core.auth import key_manager
 from model_router.core.capabilities import capability_registry
 from model_router.core.memory import memory_store
@@ -130,6 +131,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         fallback_chain_config=getattr(app.state, "fallback_chain_config", {}),
     )
     app.state.ctx = ctx
+
+    # 7. Snapshot env API keys for change detection (v1.3.0)
+    env_key_sync.snapshot()
     logger.info("AppContext container created (v1.2.0)")
 
     yield
@@ -317,6 +321,14 @@ def create_app(
     async def health(request: Request) -> dict:
         """Health check endpoint with pool, registry and memory status."""
         ctx: AppContext = request.app.state.ctx
+        # Check for env key changes (best-effort, non-blocking)
+        changed_keys = env_key_sync.check()
+        if changed_keys:
+            logger.warning(
+                "Env API keys changed: %s — reload config to apply",
+                ", ".join(changed_keys),
+            )
+            env_key_sync.update_snapshot()
         return {
             "status": "ok",
             "version": __version__,
@@ -376,41 +388,133 @@ def create_app(
 
 def _load_config_from_yaml() -> tuple[dict, dict]:
     """
-    Load models_config and fallback_chain from config.yaml if it exists.
+    Layered config loading for Model Router v1.4.0.
 
-    If config.yaml doesn't exist, try auto-generating from environment
-    variable API keys (v1.3.0 Agent Key auto-inheritance).
+    Priority (high → low):
+      1. config.yaml explicit models
+      2. Environment variable API keys (auto-generate)
+      3. Agent config auto-inheritance (Hermes, Claude Code, etc.)
+      4. Empty defaults
 
     Returns (models_config, fallback_chain_config).
     """
     from pathlib import Path
 
     config_path = Path("config.yaml")
-    if not config_path.exists():
-        # Auto-generate from environment variables (v1.3.0)
+    models_config: dict = {}
+    fallback_chain_config: dict = {}
+
+    # Layer 1: config.yaml explicit configuration (highest priority)
+    if config_path.exists():
+        try:
+            try:
+                import yaml
+                data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+            except ImportError:
+                from model_router.config.validator import _simple_yaml_load
+                data = _simple_yaml_load(str(config_path))
+            models_config = data.get("models", {})
+            fallback_chain_config = data.get("fallback_chain", {})
+            logger.info(
+                "Layer 1: Loaded config.yaml — %d models, %d fallback entries",
+                len(models_config), len(fallback_chain_config),
+            )
+        except Exception as exc:
+            logger.warning("Failed to load config.yaml: %s", exc)
+
+    # Layer 2: Auto-generate from env vars if no models loaded
+    if not models_config:
         try:
             from model_router.config.auto_config import auto_generate_config
             if auto_generate_config():
-                logger.info("Auto-generated config.yaml from environment keys")
-            else:
-                return {}, {}
+                logger.info("Layer 2: Auto-generated config.yaml from env keys")
+                # Re-read the generated file
+                if config_path.exists():
+                    try:
+                        try:
+                            import yaml
+                            data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+                        except ImportError:
+                            from model_router.config.validator import _simple_yaml_load
+                            data = _simple_yaml_load(str(config_path))
+                        models_config = data.get("models", {})
+                        fallback_chain_config = data.get("fallback_chain", {})
+                    except Exception as exc:
+                        logger.warning("Failed to re-read generated config: %s", exc)
         except Exception as exc:
-            logger.debug("Auto-config skipped: %s", exc)
-            return {}, {}
+            logger.debug("Env key auto-gen skipped: %s", exc)
 
-    try:
-        import yaml
-        data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
-        models = data.get("models", {})
-        fallback_chain = data.get("fallback_chain", {})
-        logger.info(
-            "Loaded config.yaml: %d models, %d fallback entries",
-            len(models), len(fallback_chain),
+    # Layer 3: Agent config auto-inheritance (zero-config startup)
+    if not models_config:
+        try:
+            from model_router.config.auto_inherit import (
+                discover_agent_config, build_models_from_agent,
+            )
+            agent_cfg = discover_agent_config()
+            if agent_cfg:
+                inherited = build_models_from_agent(agent_cfg)
+                if inherited:
+                    models_config = inherited
+                    # Auto-generate fallback chain from tier classification
+                    fallback_chain_config = _build_fallback_from_tiers(inherited)
+                    logger.info(
+                        "Layer 3: Inherited %d models from Agent config (%s)",
+                        len(inherited),
+                        ", ".join(set(m.get("provider", "?") for m in inherited.values())),
+                    )
+        except Exception as exc:
+            logger.debug("Agent inheritance skipped: %s", exc)
+
+    if not models_config:
+        logger.warning(
+            "No models configured — starting with EMPTY registry. "
+            "Router will return errors for all chat requests. "
+            "Check config.yaml, environment variables, or Agent config path."
         )
-        return models, fallback_chain
-    except Exception as exc:
-        logger.warning("Failed to load config.yaml: %s", exc)
-        return {}, {}
+
+    return models_config, fallback_chain_config
+
+
+def _build_fallback_from_tiers(models_config: dict) -> dict:
+    """
+    Auto-generate fallback chain from tier-classified models.
+
+    pro-tier models fall back to flash-tier within same provider,
+    then cross-provider flash as last resort.
+    """
+    tiers: dict[str, list[str]] = {"pro": [], "flash": []}
+    providers: dict[str, list[str]] = {}
+
+    for key, cfg in models_config.items():
+        tier = cfg.get("tier", "pro")
+        provider = cfg.get("provider", "unknown")
+        tiers.setdefault(tier, []).append(key)
+        providers.setdefault(provider, []).append(key)
+
+    chain = {}
+    # pro models → same-provider flash → any flash
+    for pro_key in tiers.get("pro", []):
+        pro_provider = models_config[pro_key].get("provider", "")
+        same_prov_flash = [
+            k for k in tiers.get("flash", [])
+            if models_config[k].get("provider") == pro_provider
+        ]
+        other_flash = [
+            k for k in tiers.get("flash", [])
+            if models_config[k].get("provider") != pro_provider
+        ]
+        chain[pro_key] = same_prov_flash + other_flash
+
+    # flash models → same-provider alternatives
+    for flash_key in tiers.get("flash", []):
+        flash_provider = models_config[flash_key].get("provider", "")
+        others = [
+            k for k in tiers.get("flash", [])
+            if k != flash_key and models_config[k].get("provider") == flash_provider
+        ]
+        chain[flash_key] = others
+
+    return chain
 
 
 # Default app instance (loads config.yaml if available)

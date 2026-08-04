@@ -83,7 +83,16 @@ class FallbackManager:
         # Get explicit chain or build automatic chain
         chain = fallback_chain_config.get(primary_model, [])
         if not chain:
-            chain = self._build_automatic_chain(primary_model, models_config)
+            # Try tier-based lookup: find primary's tier, then use that
+            primary_tier = models_config.get(
+                primary_model, {},
+            ).get("tier", "")
+            if primary_tier and primary_tier in fallback_chain_config:
+                chain = fallback_chain_config[primary_tier]
+            else:
+                chain = self._build_automatic_chain(
+                    primary_model, models_config,
+                )
 
         # Apply limit: primary + fallback attempts
         # e.g., max_attempts=3 means try primary + 2 fallbacks

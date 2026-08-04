@@ -65,6 +65,11 @@ class QualityChecker:
         """
         Check output quality.
 
+        v1.4.0 improvements:
+        - max_tokens < 50: only check non-empty (short replies are OK)
+        - Dynamic length threshold based on max_tokens
+        - Strip reasoning_content before measuring length
+
         Args:
             response_text: The model's response text
             model_key: Model identifier
@@ -79,20 +84,45 @@ class QualityChecker:
             "checks_performed": [],
         }
 
-        # 1. Empty response check
+        # 1. Empty response check — only real failure
         if not response_text or not response_text.strip():
             details["checks_performed"].append("empty:FAIL")
             return QualityResult(False, "empty_response", details)
 
-        # 2. Skip length check for explicit short-output requests
-        if max_tokens and max_tokens < self._skip_if_max_tokens_under:
-            details["checks_performed"].append(f"skip_length(max_tokens={max_tokens})")
-            return QualityResult(True, "ok_small_max_tokens", details)
+        # v1.4.0 (R7): Strip reasoning fields that some providers
+        # may embed in content (DeepSeek R1, OpenAI o-series).
+        # These are not part of the actual response.
+        import re
+        stripped = response_text
+        # Remove <think>...</think> tags (some providers wrap reasoning)
+        stripped = re.sub(r'<think>.*?</think>', '', stripped, flags=re.DOTALL)
+        # Remove leading/trailing reasoning markers
+        stripped = re.sub(r'^\[Thinking[\s\S]*?\]\s*', '', stripped)
+        text_length = len(stripped.strip())
+        details["text_length"] = text_length  # update after reasoning strip
 
-        # 3. Length check by tier
+        # 2. v1.4.0: Very short max_tokens → any non-empty reply passes
+        if max_tokens and max_tokens < 50:
+            details["checks_performed"].append(
+                f"skip_length(max_tokens={max_tokens}<50)"
+            )
+            return QualityResult(True, "ok_short_request", details)
+
+        # 3. v1.4.0: Dynamic length threshold
+        #    Use max_tokens to scale the minimum: if user asked for short
+        #    output, don't require 80 chars.
         tier = models_config.get(model_key, {}).get("tier", "pro")
-        min_len = self._min_length_flash if tier == "flash" else self._min_length_pro
-        text_length = len(response_text.strip())
+        base_min = self._min_length_flash if tier == "flash" else self._min_length_pro
+
+        if max_tokens and max_tokens < self._skip_if_max_tokens_under:
+            # Scale: min(10, max_tokens * 0.2) — very lenient
+            dynamic_min = max(1, min(10, int(max_tokens * 0.2)))
+            min_len = min(base_min, dynamic_min)
+            details["checks_performed"].append(
+                f"dynamic_threshold(max_tokens={max_tokens},min={min_len})"
+            )
+        else:
+            min_len = base_min
 
         if text_length < min_len:
             details["checks_performed"].append(f"length:FAIL({text_length}<{min_len})")

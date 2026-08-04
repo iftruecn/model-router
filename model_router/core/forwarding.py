@@ -34,6 +34,7 @@ from model_router.core.fallback import (
     should_fallback_on_error,
 )
 from model_router.core.memory import memory_store
+from model_router.core.param_adapter import adapt_request_params
 from model_router.core.router import RoutingResult, smart_router
 from model_router.providers.pool import pool
 
@@ -108,7 +109,11 @@ async def _forward_non_streaming_inner(
             continue
 
         try:
-            response_body = await _call_provider(model_key, model_cfg, request_data)
+            # v1.4.0: adapt params for provider (alias normalization, value downgrade)
+            adapted_data = adapt_request_params(
+                request_data, model_cfg.get("base_url", ""),
+            )
+            response_body = await _call_provider(model_key, model_cfg, adapted_data)
             latency_ms = (time.time() - start_time) * 1000
 
             # Quality check: verify response is not empty/refusal/repetitive

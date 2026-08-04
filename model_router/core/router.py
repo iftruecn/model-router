@@ -194,7 +194,22 @@ class SmartRouter:
         # Check if user explicitly selected a model
         explicit_model = request_data.get("model")
         if explicit_model and explicit_model != "auto":
-            return self._handle_explicit_model(explicit_model, models_config, request_data)
+            # Treat router/* pseudo-names as auto-routing
+            if explicit_model.startswith("router/"):
+                logger.info(
+                    "Pseudo-model '%s' → auto-routing", explicit_model,
+                )
+            else:
+                result = self._handle_explicit_model(
+                    explicit_model, models_config, request_data,
+                )
+                if result is not None:
+                    return result
+                # Model not found → fall through to auto-routing
+                logger.info(
+                    "Explicit model '%s' not found, using auto-routing",
+                    explicit_model,
+                )
 
         # Auto-routing: only consider selection_mode="auto" models
         return await self._auto_route(messages, models_config, request_data, request_id)
@@ -204,7 +219,7 @@ class SmartRouter:
         model_key: str,
         models_config: dict,
         request_data: dict,
-    ) -> RoutingResult:
+    ) -> Optional[RoutingResult]:
         """
         Handle explicit model selection from user.
 
@@ -238,16 +253,13 @@ class SmartRouter:
                 preset=self._preset,
             )
 
-        # Model not found at all
-        logger.warning("Explicit model not found: %s", model_key)
-        return RoutingResult(
-            model_key=model_key,
-            model_name=model_key,
-            score=0.0,
-            reason=f"model_not_found({model_key})",
-            is_explicit=True,
-            preset=self._preset,
+        # Model not found at all — fall back to auto-routing
+        logger.warning(
+            "Explicit model not found: %s — falling back to auto-routing",
+            model_key,
         )
+        # Return None to signal caller to use auto-routing
+        return None
 
     async def _auto_route(
         self,

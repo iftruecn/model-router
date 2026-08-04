@@ -17,6 +17,15 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+
+def _mask(key: str) -> str:
+    """Mask API key for safe logging."""
+    if not key:
+        return "********"
+    if len(key) <= 7:
+        return "*" * len(key)
+    return key[:3] + "****" + key[-4:]
+
 # Known environment variable -> base_url mapping
 KNOWN_KEYS: dict[str, str] = {
     "OPENAI_API_KEY":       "https://api.openai.com/v1",
@@ -41,7 +50,7 @@ def scan_env_keys() -> dict[str, str]:
         key = os.environ.get(env_var, "").strip()
         if key:
             found[env_var] = key
-            logger.info("Found API key: %s", env_var)
+            logger.info("Found API key: %s (%s)", env_var, _mask(key))
     return found
 
 
@@ -99,8 +108,7 @@ def auto_generate_config(
     # Write config
     path.write_text(yaml_content, encoding="utf-8")
     logger.info(
-        "Auto-generated %s with %d models from %d provider(s)"
-        + (" (%d provider(s) failed)",),
+        "Auto-generated %s with %d models from %d provider(s) (%d failed)",
         config_path, len(all_models),
         len(env_keys) - len(failed_providers),
         len(failed_providers),
