@@ -1,0 +1,2 @@
+[console_scripts]
+model-router = model_router.__main__:main

@@ -1,5 +1,5 @@
 """
-FastAPI application factory for Model Router v1.0.9.
+FastAPI application factory for Model Router v1.1.0.
 
 Manages application lifecycle including:
 - Connection pool initialization/cleanup
@@ -45,17 +45,11 @@ def setup_logging(level: str = DEFAULT_LOG_LEVEL) -> None:
     """
     Configure structured logging for the application.
 
-    Replaces the v1.0 print-based logging with proper Python logging module.
+    Supports JSON structured logs (production) or text (development).
+    Set MODEL_ROUTER_LOG_FORMAT=json for JSON output.
     """
-    logging.basicConfig(
-        level=getattr(logging, level.upper(), logging.INFO),
-        format=DEFAULT_LOG_FORMAT,
-        datefmt=DEFAULT_LOG_DATE_FORMAT,
-    )
-    # Reduce noise from httpx/uvicorn
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-    logger.info("Logging configured: level=%s", level)
+    from model_router.core.logging import setup_logging as _setup
+    _setup(level=level)
 
 
 @asynccontextmanager

@@ -1,12 +1,13 @@
 """
-Cost & learning dashboard for Model Router v1.0.9.
+Cost & learning dashboard for Model Router v1.1.0.
 
 Self-contained single-page dashboard (no CDN, no build step):
 answers the community's #1 question — "how much money did I save?"
 
 v1.0.3: cost stats, learning stats, preset switcher, recent requests
-v1.0.9: model management (auto/manual toggle), semantic cache stats,
+v1.1.0: model management (auto/manual toggle), semantic cache stats,
         agent capabilities status, connection pool stats
+v1.1.0: why-this-model explain panel (dry-run + request lookup)
 
 Endpoint:
     GET /dashboard — HTML page, auto-refreshes every 10s
@@ -66,6 +67,23 @@ _DASHBOARD_HTML = """<!DOCTYPE html>
               border-bottom:1px solid #2a2e3d; font-size:13px; }
   .stat-row:last-child { border-bottom:none; }
   .stat-label { color:var(--dim); }
+  .explain-input { background:#2a2e3d; border:1px solid #3a3f52; color:var(--fg);
+                   border-radius:6px; padding:8px 12px; width:100%; font-size:13px;
+                   font-family:inherit; resize:vertical; }
+  .explain-input:focus { outline:none; border-color:var(--blue); }
+  .explain-btn { background:var(--blue); color:#fff; border:none; border-radius:6px;
+                 padding:6px 16px; cursor:pointer; font-size:13px; margin-top:4px; }
+  .explain-btn:hover { opacity:0.85; }
+  .explain-result { margin-top:12px; }
+  .explain-bar { height:8px; border-radius:4px; background:#2a2e3d; position:relative;
+                 overflow:hidden; margin:2px 0 6px; }
+  .explain-bar-fill { height:100%; border-radius:4px; }
+  .explain-candidate { margin-bottom:10px; padding:8px; background:#1e2130;
+                       border-radius:6px; }
+  .explain-model { font-weight:600; font-size:13px; }
+  .explain-score { color:var(--blue); font-size:12px; }
+  .explain-breakdown { display:flex; gap:12px; font-size:11px; color:var(--dim);
+                       margin-top:4px; }
 </style>
 </head>
 <body>
@@ -144,6 +162,22 @@ _DASHBOARD_HTML = """<!DOCTYPE html>
   <h2>Recent Requests</h2>
   <table><thead><tr><th>request</th><th>task</th><th>model</th><th>mode</th><th>preset</th><th>latency</th></tr></thead>
   <tbody id="recent"></tbody></table>
+</section>
+
+<!-- Why-this-model Explain -->
+<section>
+  <h2>Why This Model?</h2>
+  <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
+    <div style="flex:1;min-width:200px">
+      <textarea id="explain_input" class="explain-input" rows="2"
+        placeholder="Enter request ID to lookup, or a message to dry-run..."></textarea>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <button class="explain-btn" onclick="explainLookup()">Lookup Request</button>
+      <button class="explain-btn" onclick="explainDryRun()" style="background:#2a6a3a">Dry Run</button>
+    </div>
+  </div>
+  <div id="explain_result" class="explain-result"></div>
 </section>
 
 <script>
@@ -268,6 +302,95 @@ async function toggleMode(modelId, newMode){
     body: JSON.stringify({selection_mode: newMode}),
   });
   refresh();
+}
+
+// Explain functions
+async function explainLookup() {
+  const rid = document.getElementById('explain_input').value.trim();
+  if (!rid) { document.getElementById('explain_result').innerHTML =
+    '<div style="color:var(--amber)">Enter a request ID</div>'; return; }
+  try {
+    const r = await fetch('/admin/explain?request_id=' + encodeURIComponent(rid));
+    const d = await r.json();
+    if (!r.ok) { document.getElementById('explain_result').innerHTML =
+      '<div style="color:var(--red)">' + esc(d.detail || 'Not found') + '</div>'; return; }
+    renderExplain(d);
+  } catch(e) { document.getElementById('explain_result').innerHTML =
+    '<div style="color:var(--red)">Error: ' + esc(e.message) + '</div>'; }
+}
+
+async function explainDryRun() {
+  const msg = document.getElementById('explain_input').value.trim();
+  if (!msg) { document.getElementById('explain_result').innerHTML =
+    '<div style="color:var(--amber)">Enter a message to test routing</div>'; return; }
+  try {
+    const r = await fetch('/admin/explain?message=' + encodeURIComponent(msg));
+    const d = await r.json();
+    if (!r.ok) { document.getElementById('explain_result').innerHTML =
+      '<div style="color:var(--red)">' + esc(d.detail || 'Error') + '</div>'; return; }
+    renderExplain(d);
+  } catch(e) { document.getElementById('explain_result').innerHTML =
+    '<div style="color:var(--red)">Error: ' + esc(e.message) + '</div>'; }
+}
+
+function renderExplain(d) {
+  const isDry = d.dry_run || false;
+  let html = '<div style="margin-bottom:10px">';
+  html += '<span style="font-size:16px;font-weight:700;color:var(--green)">' + esc(d.model || d.model_name || '?') + '</span>';
+  if (d.score) html += ' <span style="color:var(--blue)">score: ' + (d.score || 0).toFixed(2) + '</span>';
+  html += ' <span class="badge">' + esc(d.routing_mode || '') + '</span>';
+  html += ' <span class="badge">' + esc(d.preset || '') + '</span>';
+  if (d.task) html += ' <span style="color:var(--dim)">task: ' + esc(d.task) + '</span>';
+  if (isDry) html += ' <span style="color:var(--amber)">[dry run]</span>';
+  if (d.reason) html += '<div style="color:var(--dim);font-size:12px;margin-top:4px">' + esc(d.reason) + '</div>';
+  html += '</div>';
+
+  // Cost info
+  if (d.cost !== undefined || d.estimated_cost) {
+    html += '<div style="font-size:12px;color:var(--dim);margin-bottom:8px">';
+    if (d.cost) html += 'Actual cost: $' + d.cost.toFixed(6);
+    if (d.estimated_cost) html += ' | Estimated: $' + d.estimated_cost.toFixed(6);
+    if (d.baseline_cost) html += ' | Baseline: $' + d.baseline_cost.toFixed(6);
+    if (d.latency_ms) html += ' | Latency: ' + d.latency_ms.toFixed(0) + 'ms';
+    if (d.prompt_tokens) html += ' | Tokens: ' + d.prompt_tokens + ' in / ' + d.completion_tokens + ' out';
+    html += '</div>';
+  }
+
+  // Top candidates breakdown
+  const candidates = d.top_candidates || [];
+  if (candidates.length > 0) {
+    html += '<div style="font-size:12px;color:var(--dim);margin-bottom:6px">Top Candidates (' + candidates.length + ')</div>';
+    const maxScore = Math.max(...candidates.map(c => Math.abs(c.score || 0)), 0.01);
+    candidates.forEach((c, i) => {
+      const pct = Math.min(100, Math.abs(c.score || 0) / maxScore * 100);
+      const color = i === 0 ? 'var(--green)' : (c.score >= 0 ? 'var(--blue)' : 'var(--red)');
+      html += '<div class="explain-candidate">';
+      html += '<div style="display:flex;justify-content:space-between">';
+      html += '<span class="explain-model">' + esc(c.model || '') + '</span>';
+      html += '<span class="explain-score">' + (c.score || 0).toFixed(2) + '</span></div>';
+      html += '<div class="explain-bar"><div class="explain-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div>';
+      if (c.breakdown) {
+        const b = c.breakdown;
+        html += '<div class="explain-breakdown">';
+        if (b.capability !== undefined) html += '<span>capability: ' + b.capability.toFixed(2) + '</span>';
+        if (b.cost !== undefined) html += '<span>cost: ' + b.cost.toFixed(2) + '</span>';
+        if (b.speed !== undefined) html += '<span>speed: ' + b.speed.toFixed(2) + '</span>';
+        if (b.learned !== undefined) html += '<span>learned: ' + b.learned.toFixed(2) + '</span>';
+        if (b.total !== undefined) html += '<span>total: ' + b.total.toFixed(2) + '</span>';
+        html += '</div>';
+      }
+      html += '</div>';
+    });
+  }
+
+  // Failed models (fallback trail)
+  if (d.failed_models && d.failed_models.length > 0) {
+    html += '<div style="font-size:12px;color:var(--amber);margin-top:8px">';
+    html += 'Fallback chain: ' + d.failed_models.map(esc).join(' \u2192 ') + ' \u2192 <strong>' + esc(d.model) + '</strong>';
+    html += '</div>';
+  }
+
+  document.getElementById('explain_result').innerHTML = html;
 }
 
 refresh();

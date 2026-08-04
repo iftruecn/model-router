@@ -1,5 +1,5 @@
 """
-Agent capability adapter layer (v1.0.4+) with hot sensing.
+Agent capability adapter layer (v1.1.0) with hot sensing.
 
 Agents (Hermes / OpenClaw / ...) can declare what they can lend us:
 vector DB, persistent memory, knowledge base. The Router only READS

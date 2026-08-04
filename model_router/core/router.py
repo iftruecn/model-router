@@ -1,5 +1,5 @@
 """
-Smart routing engine for Model Router v1.0.2.
+Smart routing engine for Model Router v1.1.0.
 
 Combines query feature extraction (classifier) with model capability
 profiles (registry) to select the best model for each query.
@@ -378,6 +378,9 @@ class SmartRouter:
                 "final_model": best_profile.model_id,
                 "failed_models": [],  # filled by fallback chain when wired
                 "candidates": [p.model_id for p, _, _ in scored[:5]],
+                "top_candidates": top_candidates,  # full scoring breakdown (v1.1.0)
+                "estimated_cost": round(est_cost, 6),
+                "baseline_cost": round(baseline_cost, 6),
             })
 
         # Reason: domain + matched pattern names (v1.0.3 transparency)

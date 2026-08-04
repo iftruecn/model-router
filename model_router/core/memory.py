@@ -1,5 +1,5 @@
 """
-Persistent memory store for Model Router v1.0.2.
+Persistent memory store for Model Router v1.1.0.
 
 Stores routing learning statistics (Gaussian TS parameters, EWMA scores,
 cost accounting) and a ring-buffered request log for feedback attribution

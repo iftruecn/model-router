@@ -1,5 +1,5 @@
 """
-Provider forwarding layer (v1.0.7).
+Provider forwarding layer (v1.1.0).
 
 Bridges the routing decision to actual model provider API calls.
 Handles:
@@ -27,6 +27,7 @@ import httpx
 from model_router.config.defaults import DEFAULT_FORWARDING_CONCURRENCY
 from model_router.core.cache import semantic_cache
 from model_router.core.quality import quality_checker
+from model_router.config.pricing import calculate_cost, get_baseline_cost
 from model_router.core.fallback import (
     FallbackManager,
     fallback_manager,
@@ -130,7 +131,30 @@ async def _forward_non_streaming_inner(
             if failed_models:
                 routing.record_fallback(failed_models, model_key)
 
-            # Post-response: learning loop (best-effort)
+            # Extract token usage from response (for cost tracking)
+            usage = response_body.get("usage", {})
+            prompt_tokens = usage.get("prompt_tokens", 0)
+            completion_tokens = usage.get("completion_tokens", 0)
+
+            # Calculate actual cost from token usage + pricing config
+            actual_cost = calculate_cost(model_key, prompt_tokens, completion_tokens)
+
+            # Post-response: update request log with cost + fallback trail + latency
+            # MUST happen before record_outcome so learner reads real cost data
+            try:
+                entry = memory_store.get_request(request_id)
+                task = entry.get("task", "chat") if entry else "chat"
+                if entry is not None:
+                    entry["failed_models"] = list(failed_models)
+                    entry["latency_ms"] = round(latency_ms, 1)
+                    entry["prompt_tokens"] = prompt_tokens
+                    entry["completion_tokens"] = completion_tokens
+                    entry["cost"] = actual_cost
+                    entry["baseline_cost"] = get_baseline_cost(task, models_config)
+            except Exception as exc:
+                logger.debug("Request log update failed (ignored): %s", exc)
+
+            # Post-response: learning loop (best-effort) — now with real cost data
             try:
                 await smart_router.record_outcome(
                     request_id=request_id,
@@ -139,15 +163,6 @@ async def _forward_non_streaming_inner(
                 )
             except Exception as exc:
                 logger.debug("Learning record failed (ignored): %s", exc)
-
-            # Post-response: update request log with fallback trail + latency
-            try:
-                entry = memory_store.get_request(request_id)
-                if entry is not None:
-                    entry["failed_models"] = list(failed_models)
-                    entry["latency_ms"] = round(latency_ms, 1)
-            except Exception as exc:
-                logger.debug("Request log update failed (ignored): %s", exc)
 
             # Post-response: auto-fill semantic cache
             try:

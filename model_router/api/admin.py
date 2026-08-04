@@ -18,6 +18,10 @@ Endpoints:
     GET  /admin/evaluate         — Offline evaluation report (v1.0.4)
     GET  /admin/capabilities     — Agent capability declarations (v1.0.4)
     PUT  /admin/capabilities     — Declare agent capabilities (v1.0.4)
+    GET  /admin/explain          — Why-this-model: ?request_id=X or ?message=Y (v1.1.0)
+    POST /admin/explain          — Why-this-model dry-run with full messages (v1.1.0)
+    POST /admin/config/validate  — Validate config.yaml (v1.1.0)
+    PUT  /admin/capabilities     — Declare agent capabilities (v1.0.4)
 """
 
 import logging
@@ -27,6 +31,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from model_router.config.defaults import ROUTING_PRESETS
+from model_router.config.validator import validate_config
 from model_router.core.cache import semantic_cache
 from model_router.core.capabilities import capability_registry
 from model_router.core.evaluator import offline_evaluator
@@ -412,6 +417,179 @@ async def put_capabilities(req: CapabilitiesRequest) -> dict:
         "count": len(declared),
         "status": capability_registry.get_status(),
     }
+
+
+
+
+# ------------------------------------------------------------------
+# Why-this-model explanation endpoint (v1.1.0)
+# ------------------------------------------------------------------
+
+@router.get("/explain")
+async def explain_routing_get(
+    request_id: str = "",
+    message: str = "",
+) -> dict:
+    """
+    Why-this-model — GET for browser use.
+
+    Two modes:
+    - GET /admin/explain?request_id=abc123  → look up past request
+    - GET /admin/explain?message=hello      → dry-run routing (no API calls)
+
+    Returns the full scoring breakdown: top candidates, scores, and per-factor
+    decomposition (capability match, cost, speed, learned contribution).
+    """
+    # Mode 1: Look up past request by ID
+    if request_id:
+        entry = memory_store.get_request(request_id)
+        if entry is None:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=404,
+                detail=f"Request {request_id} not found in log",
+            )
+        return {
+            "request_id": request_id,
+            "model": entry.get("final_model", ""),
+            "task": entry.get("task", "chat"),
+            "preset": entry.get("preset", "balance"),
+            "routing_mode": entry.get("routing_mode", "static"),
+            "top_candidates": entry.get("top_candidates", []),
+            "candidates": entry.get("candidates", []),
+            "failed_models": entry.get("failed_models", []),
+            "estimated_cost": entry.get("estimated_cost", 0.0),
+            "baseline_cost": entry.get("baseline_cost", 0.0),
+            "cost": entry.get("cost", 0.0),
+            "latency_ms": entry.get("latency_ms", 0.0),
+            "prompt_tokens": entry.get("prompt_tokens", 0),
+            "completion_tokens": entry.get("completion_tokens", 0),
+        }
+
+    # Mode 2: Dry-run routing with a single message
+    if message:
+        messages = [{"role": "user", "content": message}]
+        models_config = {}
+        for key, profile in model_registry.profiles.items():
+            models_config[key] = {
+                "enabled": profile.selection_mode == "auto",
+                "capabilities": profile.capabilities,
+            }
+        routing = await smart_router.route(
+            messages=messages,
+            models_config=models_config,
+            request_data={"messages": messages},
+            request_id=None,  # dry-run: don't log
+        )
+        return {
+            "model": routing.model_key,
+            "model_name": routing.model_name,
+            "score": routing.score,
+            "reason": routing.reason,
+            "task": routing.features.get("primary_domain", "chat") if routing.features else "chat",
+            "preset": routing.preset,
+            "routing_mode": routing.routing_mode,
+            "top_candidates": routing.top_candidates,
+            "candidates_scored": routing.candidates_scored,
+            "estimated_cost": routing.estimated_cost,
+            "baseline_cost": routing.baseline_cost,
+            "learned_contribution": routing.learned_contribution,
+            "dry_run": True,
+        }
+
+    from fastapi import HTTPException
+    raise HTTPException(
+        status_code=400,
+        detail="Provide 'request_id' (lookup) or 'message' (dry-run)",
+    )
+
+
+@router.post("/explain")
+async def explain_routing_post(request: Request) -> dict:
+    """
+    Dry-run routing with full message array.
+
+    POST /admin/explain  {"messages": [{"role":"user","content":"..."}]}
+
+    Does NOT make any API calls — only runs the routing decision locally.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    messages = body.get("messages")
+    if not messages:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=400,
+            detail="Provide 'messages' array for dry-run routing",
+        )
+
+    models_config = {}
+    for key, profile in model_registry.profiles.items():
+        models_config[key] = {
+            "enabled": profile.selection_mode == "auto",
+            "capabilities": profile.capabilities,
+        }
+    routing = await smart_router.route(
+        messages=messages,
+        models_config=models_config,
+        request_data={"messages": messages},
+        request_id=None,  # dry-run: don't log
+    )
+    return {
+        "model": routing.model_key,
+        "model_name": routing.model_name,
+        "score": routing.score,
+        "reason": routing.reason,
+        "task": routing.features.get("primary_domain", "chat") if routing.features else "chat",
+        "preset": routing.preset,
+        "routing_mode": routing.routing_mode,
+        "top_candidates": routing.top_candidates,
+        "candidates_scored": routing.candidates_scored,
+        "estimated_cost": routing.estimated_cost,
+        "baseline_cost": routing.baseline_cost,
+        "learned_contribution": routing.learned_contribution,
+        "dry_run": True,
+    }
+
+
+
+# ------------------------------------------------------------------
+# Config validation endpoint (v1.1.0)
+# ------------------------------------------------------------------
+
+@router.post("/config/validate")
+async def validate_config_endpoint(request: Request) -> dict:
+    """
+    Validate a Model Router config (YAML body or JSON body).
+
+    Returns validation result with errors and warnings.
+    """
+    content_type = request.headers.get("content-type", "")
+
+    try:
+        if "yaml" in content_type or "text" in content_type:
+            body = await request.body()
+            text = body.decode("utf-8")
+            # Try PyYAML first
+            try:
+                import yaml
+                config = yaml.safe_load(text) or {}
+            except ImportError:
+                # Fallback: treat as JSON
+                import json
+                config = json.loads(text)
+        else:
+            config = await request.json()
+    except Exception as exc:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"Failed to parse config: {exc}")
+
+    result = validate_config(config)
+    return result.to_dict()
 
 
 # ------------------------------------------------------------------
