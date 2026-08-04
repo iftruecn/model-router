@@ -123,6 +123,15 @@ async def _forward_non_streaming_inner(
             except Exception as exc:
                 logger.debug("Learning record failed (ignored): %s", exc)
 
+            # Post-response: update request log with fallback trail + latency
+            try:
+                entry = memory_store.get_request(request_id)
+                if entry is not None:
+                    entry["failed_models"] = list(failed_models)
+                    entry["latency_ms"] = round(latency_ms, 1)
+            except Exception as exc:
+                logger.debug("Request log update failed (ignored): %s", exc)
+
             # Post-response: auto-fill semantic cache
             try:
                 semantic_cache.store(

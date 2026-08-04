@@ -1,4 +1,4 @@
-"""
+﻿"""
 Tests for the v1.0.4 batch (FROM-HERMES-next):
 - P1#3 multi-signal classification (system prompt signals)
 - P2#7 offline evaluator (learning value quantification)
@@ -86,9 +86,9 @@ def test_evaluator_empty_history(store):
 
 
 def test_evaluator_learning_helps(store):
-    for _ in range(8):
+    for _ in range(12):
         _log(store, "static", fallback=True)
-    for _ in range(8):
+    for _ in range(12):
         _log(store, "learned", fallback=False)
     rep = OfflineEvaluator(memory=store).evaluate()
     assert rep["by_routing_mode"]["static"]["fallback_rate"] == 1.0
@@ -97,9 +97,9 @@ def test_evaluator_learning_helps(store):
 
 
 def test_evaluator_neutral_when_equal(store):
-    for _ in range(4):
+    for _ in range(12):
         _log(store, "static", fallback=False)
-    for _ in range(4):
+    for _ in range(12):
         _log(store, "learned", fallback=False)
     rep = OfflineEvaluator(memory=store).evaluate()
     assert rep["conclusion"].startswith("neutral")
@@ -127,7 +127,7 @@ def test_evaluator_counts_unique_models(store):
 
 
 # ------------------------------------------------------------------
-# Capability adapter layer — static declaration
+# Capability adapter layer 鈥?static declaration
 # ------------------------------------------------------------------
 
 def test_registry_declare_and_status():
