@@ -8,5 +8,5 @@ OpenAI-compatible local proxy that automatically routes requests across
 multiple LLMs based on task complexity, with automatic fallback on poor output.
 """
 
-__version__ = "1.0.9"
+__version__ = "1.2.0"
 __author__ = "iftrue-hermes"
