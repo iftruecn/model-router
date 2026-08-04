@@ -1,5 +1,5 @@
 """
-Built-in model metadata for Model Router v1.4.0.
+Built-in model metadata for Model Router v1.7.0.
 
 Fallback table when /v1/models doesn't return full metadata.
 Contains real parameters for popular models — context windows,

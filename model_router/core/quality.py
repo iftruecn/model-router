@@ -1,5 +1,5 @@
 """
-Quality checker for Model Router v1.6.1.
+Quality checker for Model Router v1.7.0.
 
 Improved quality checking with:
 - Composite checking (multiple strategies combined)

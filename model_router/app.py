@@ -1,5 +1,5 @@
 """
-FastAPI application factory for Model Router v1.6.1.
+FastAPI application factory for Model Router v1.7.0.
 
 Manages application lifecycle including:
 - Connection pool initialization/cleanup
@@ -388,7 +388,7 @@ def create_app(
 
 def _load_config_from_yaml() -> tuple[dict, dict]:
     """
-    Layered config loading for Model Router v1.4.0.
+    Layered config loading for Model Router v1.7.0.
 
     Priority (high → low):
       1. config.yaml explicit models

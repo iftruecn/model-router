@@ -1,5 +1,5 @@
 """
-Structured JSON logging for Model Router v1.2.0.
+Structured JSON logging for Model Router v1.7.0.
 
 Provides a zero-dependency JSON log formatter that outputs structured
 log lines suitable for production log aggregation (ELK, Loki, etc.).

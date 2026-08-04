@@ -1,5 +1,5 @@
 """
-Self-learning engine for Model Router v1.6.1.
+Self-learning engine for Model Router v1.7.0.
 
 Implements the learning loop approved in FR-持久记忆与自学习 with the
 math refinements from Hermes' deep review (REVIEW-math-deep-dive.md):

@@ -1,5 +1,5 @@
 """
-Per-key rate limiting for Model Router v1.3.0.
+Per-key rate limiting for Model Router v1.7.0.
 
 Token bucket algorithm, zero external dependencies.
 Configurable via environment variables:

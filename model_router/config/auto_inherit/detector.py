@@ -1,5 +1,5 @@
 """
-Agent config file detector for Model Router v1.4.0.
+Agent config file detector for Model Router v1.7.0.
 
 Scans known paths for Agent configuration files and extracts
 provider/model information for Router inheritance.

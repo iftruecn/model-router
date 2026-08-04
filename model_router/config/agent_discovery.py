@@ -1,5 +1,5 @@
 """
-Agent configuration auto-discovery for Model Router v1.6.1.
+Agent configuration auto-discovery for Model Router v1.7.0.
 
 Discovers ALL agent configurations on the system (not just the first one).
 Supports:

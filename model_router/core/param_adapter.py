@@ -1,5 +1,5 @@
 """
-Request parameter adaptation for Model Router v1.6.1.
+Request parameter adaptation for Model Router v1.7.0.
 
 Different providers support different parameter names and values.
 This module normalizes parameters before forwarding and downgrades

@@ -1,5 +1,5 @@
 """
-One-click install command for Model Router v1.6.1.
+One-click install command for Model Router v1.7.0.
 
 Automatically discovers all agents and injects Router provider config:
 - Hermes: adds to custom_providers
@@ -188,7 +188,7 @@ def install_agents(
 
     _print("")
     _print("=" * 56, C.GREEN + C.BOLD)
-    _print("  Model Router v1.5.0 - Agent Install", C.GREEN + C.BOLD)
+    _print("  Model Router v1.7.0 - Agent Install", C.GREEN + C.BOLD)
     _print("=" * 56, C.GREEN + C.BOLD)
     _print("")
 

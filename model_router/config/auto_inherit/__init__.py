@@ -1,5 +1,5 @@
 """
-Agent config auto-inheritance for Model Router v1.4.0.
+Agent config auto-inheritance for Model Router v1.7.0.
 
 Automatically discovers and inherits API keys and model
 configurations from known Agent frameworks (Hermes, Claude Code, etc.)

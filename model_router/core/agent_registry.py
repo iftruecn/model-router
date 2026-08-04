@@ -1,5 +1,5 @@
 """
-Agent Registry for Model Router v1.6.1.
+Agent Registry for Model Router v1.7.0.
 
 Manages multi-agent registration:
 - Each agent gets a unique Router API Key (mr-sk-<agent>-<random>)

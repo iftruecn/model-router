@@ -1,5 +1,5 @@
 """
-Virtual API Key management for Model Router v1.2.0.
+Virtual API Key management for Model Router v1.7.0.
 
 Lightweight single-instance auth:
 - Keys look like OpenAI keys: ``mr-sk-<32 url-safe chars>``
