@@ -1,5 +1,5 @@
 """
-Pricing configuration for model cost tracking (v1.1.0).
+Pricing configuration for model cost tracking (v1.2.0).
 
 Loads per-token pricing from config/pricing.yaml.
 Uses PyYAML if available; otherwise falls back to a built-in simple parser

@@ -149,7 +149,7 @@ DOMAIN_PATTERNS = [
 
 
 # ===============================================================
-# System Prompt Signals (v1.0.4, multi-signal fusion)
+# System Prompt Signals (v1.2.0, multi-signal fusion)
 # System prompts are a MORE STABLE signal than single user messages:
 # an agent configured for coding keeps saying so on every request.
 # Weights are intentionally lower than user-text patterns (0.4 base).

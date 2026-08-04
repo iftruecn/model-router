@@ -1,5 +1,5 @@
 """
-FastAPI application factory for Model Router v1.1.0.
+FastAPI application factory for Model Router v1.2.0.
 
 Manages application lifecycle including:
 - Connection pool initialization/cleanup
@@ -32,6 +32,7 @@ from model_router.config.defaults import (
     MEMORY_DEFAULT_DATA_DIR,
     MAX_REQUEST_BODY_SIZE,
 )
+from model_router.runtime import AppContext
 from model_router.core.auth import key_manager
 from model_router.core.capabilities import capability_registry
 from model_router.core.memory import memory_store
@@ -111,12 +112,31 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             capability_registry.agent_id, capability_registry.fingerprint,
         )
 
+
+    # 6. Create AppContext container (v1.2.0)
+    from model_router.core.learner import learner as global_learner, diversity_guard as global_guard
+    from model_router.core.router import smart_router
+    ctx = AppContext(
+        router=smart_router,
+        learner=global_learner,
+        guard=global_guard,
+        memory=memory_store,
+        registry=model_registry,
+        pool=pool,
+        keys=key_manager,
+        capabilities=capability_registry,
+        models_config=models_config or {},
+        fallback_chain_config=getattr(app.state, "fallback_chain_config", {}),
+    )
+    app.state.ctx = ctx
+    logger.info("AppContext container created (v1.2.0)")
+
     yield
 
     # Shutdown
     logger.info("Model Router shutting down...")
-    await memory_store.save()
-    await key_manager.save()
+    await ctx.memory.save()
+    await ctx.keys.save()
     logger.info("Memory store + API keys persisted")
     await pool.close()
     logger.info("Shutdown complete")
@@ -206,7 +226,8 @@ def create_app(
         - Everything else requires ``Authorization: Bearer mr-sk-...``
         - Valid key id is attached to request.state + usage is counted
         """
-        if not key_manager.auth_enabled:
+        ctx: AppContext = request.app.state.ctx
+        if not ctx.keys.auth_enabled:
             return await call_next(request)
 
         path = request.url.path
@@ -219,7 +240,7 @@ def create_app(
             if auth_header.startswith("Bearer ")
             else ""
         )
-        record = key_manager.verify(raw_key)
+        record = ctx.keys.verify(raw_key)
         if record is None:
             return JSONResponse(
                 {
@@ -239,7 +260,7 @@ def create_app(
         # Lightweight per-key spend attribution (requests now, cost once
         # real provider forwarding exposes per-request pricing)
         if record["key_id"] != "__master__":
-            key_manager.record_usage(record["key_id"], estimated_cost=0.0)
+            ctx.keys.record_usage(record["key_id"], estimated_cost=0.0)
 
         return response
 
@@ -260,29 +281,31 @@ def create_app(
     app.include_router(dashboard_router)
 
     @app.get("/health")
-    async def health() -> dict:
+    async def health(request: Request) -> dict:
         """Health check endpoint with pool, registry and memory status."""
+        ctx: AppContext = request.app.state.ctx
         return {
             "status": "ok",
             "version": __version__,
-            "connection_pool": pool.get_stats(),
+            "connection_pool": ctx.pool.get_stats(),
             "registry": {
-                "mode": model_registry.mode,
-                "models": len(model_registry.profiles),
+                "mode": ctx.registry.mode,
+                "models": len(ctx.registry.profiles),
                 "enhanced": sum(
-                    1 for p in model_registry.profiles.values()
+                    1 for p in ctx.registry.profiles.values()
                     if p.source == "enhanced"
                 ),
             },
-            "memory": memory_store.get_cost_stats(),
-            "auth": {"enabled": key_manager.auth_enabled},
+            "memory": ctx.memory.get_cost_stats(),
+            "auth": {"enabled": ctx.keys.auth_enabled},
         }
 
     @app.get("/v1/models")
-    async def list_models() -> dict:
+    async def list_models(request: Request) -> dict:
         """List models the agent has registered with Model Router."""
+        ctx: AppContext = request.app.state.ctx
         models = []
-        for key, profile in model_registry.profiles.items():
+        for key, profile in ctx.registry.profiles.items():
             models.append({
                 "id": key,
                 "name": profile.name,

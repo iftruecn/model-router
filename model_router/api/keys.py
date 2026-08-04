@@ -1,5 +1,5 @@
 """
-Virtual API Key management endpoints for Model Router v1.1.0.
+Virtual API Key management endpoints for Model Router v1.2.0.
 
 Endpoints (all require the master key when auth is active):
     GET    /admin/keys          — List keys (masked) + usage stats

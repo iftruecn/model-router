@@ -1,5 +1,5 @@
 """
-Chat completions route for Model Router v1.1.0.
+Chat completions route for Model Router v1.2.0.
 
 Handles both streaming and non-streaming requests,
 integrating with the core router for model selection and fallback,
@@ -110,7 +110,8 @@ async def chat_completions(request: Request) -> Any:
     )
 
     # Route the request (explicit model selection is respected inside)
-    routing = await smart_router.route(
+    ctx: AppContext = request.app.state.ctx
+    routing = await ctx.router.route(
         messages=request_data.get("messages", []),
         models_config=models_config,
         request_data=request_data,

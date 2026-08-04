@@ -3,7 +3,7 @@ Fallback chain management for Model Router.
 
 Handles model fallback logic with configurable limits and strategies.
 
-v1.0.3: semantic trigger policy — HTTP status alone is not a failure
+v1.2.0: semantic trigger policy — HTTP status alone is not a failure
 signal (LiteLLM issue #21377). ``should_fallback_on_error()`` decides
 per error category whether the chain should walk on.
 """

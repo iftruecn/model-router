@@ -4,7 +4,7 @@ Global HTTP connection pool for Model Router.
 Manages httpx.AsyncClient instances with connection pooling,
 grouped by base_url for efficient TCP connection reuse.
 
-v1.1.0: Tiered timeouts (connect=10s, read=60s, write=10s, pool=10s).
+v1.2.0: Tiered timeouts (connect=10s, read=60s, write=10s, pool=10s).
 """
 
 import logging

@@ -1,5 +1,5 @@
 """
-Offline evaluator (v1.1.0): replay the request log to quantify
+Offline evaluator (v1.2.0): replay the request log to quantify
 how much self-learning actually improved routing.
 
 Read-only over MemoryStore — never mutates learning state.

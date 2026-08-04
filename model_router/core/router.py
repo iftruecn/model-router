@@ -1,5 +1,5 @@
 """
-Smart routing engine for Model Router v1.1.0.
+Smart routing engine for Model Router v1.2.0.
 
 Combines query feature extraction (classifier) with model capability
 profiles (registry) to select the best model for each query.

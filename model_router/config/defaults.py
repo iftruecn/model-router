@@ -13,7 +13,7 @@ DEFAULT_MAX_CONNECTIONS: int = 100
 DEFAULT_MAX_KEEPALIVE_CONNECTIONS: int = 20
 DEFAULT_CONNECTION_TIMEOUT: float = 120.0
 
-# Tiered timeouts (v1.1.0, gap-analysis #1)
+# Tiered timeouts (v1.2.0, gap-analysis #1)
 DEFAULT_CONNECT_TIMEOUT: float = 10.0    # TCP handshake
 DEFAULT_READ_TIMEOUT: float = 60.0       # waiting for response body
 DEFAULT_WRITE_TIMEOUT: float = 10.0      # sending request body

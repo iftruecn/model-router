@@ -1,5 +1,5 @@
 """
-Cost & learning dashboard for Model Router v1.1.0.
+Cost & learning dashboard for Model Router v1.2.0.
 
 Self-contained single-page dashboard (no CDN, no build step):
 answers the community's #1 question — "how much money did I save?"
@@ -157,6 +157,24 @@ _DASHBOARD_HTML = """<!DOCTYPE html>
   <tbody id="learned"></tbody></table>
 </section>
 
+<!-- Human Feedback (v1.2.0) -->
+<section>
+  <h2>Human Feedback</h2>
+  <div class="cards" style="margin-bottom:12px">
+    <div class="card"><div class="label">Total Feedback</div>
+      <div class="value blue" id="fb_total">—</div></div>
+    <div class="card"><div class="label">Positive</div>
+      <div class="value green" id="fb_pos">—</div></div>
+    <div class="card"><div class="label">Negative</div>
+      <div class="value amber" id="fb_neg">—</div></div>
+    <div class="card"><div class="label">Approval Rate</div>
+      <div class="value green" id="fb_rate">—</div></div>
+  </div>
+  <table><thead><tr><th>request</th><th>task</th><th>model</th><th>feedback</th></tr></thead>
+  <tbody id="fb_recent"></tbody></table>
+</section>
+
+<!-- Recent Requests -->
 <!-- Recent Requests -->
 <section>
   <h2>Recent Requests</h2>
@@ -282,6 +300,20 @@ async function refresh(){
       (r.latency_ms ? r.latency_ms.toFixed(0) + 'ms' : '\u2014') + '</td></tr>')
       .reverse().join('') ||
       '<tr><td colspan="6" style="color:var(--dim)">No requests yet</td></tr>';
+    // Feedback stats (v1.2.0)
+    const fb = learn.feedback || {};
+    document.getElementById('fb_total').textContent = fb.total ?? 0;
+    document.getElementById('fb_pos').textContent = fb.positive ?? 0;
+    document.getElementById('fb_neg').textContent = fb.negative ?? 0;
+    const fbRate = fb.total > 0 ? ((fb.positive / fb.total) * 100).toFixed(1) + '%' : '\u2014';
+    document.getElementById('fb_rate').textContent = fbRate;
+    document.getElementById('fb_recent').innerHTML = (fb.recent || []).map(r =>
+      '<tr><td>' + esc(r.request_id || '') + '</td><td>' + esc(r.task || '') +
+      '</td><td>' + esc(r.model || '') + '</td><td><span class="badge ' +
+      (r.feedback === 'positive' ? 'badge-on' : 'badge-off') + '">' +
+      esc(r.feedback || '') + '</span></td></tr>').join('') ||
+      '<tr><td colspan="4" style="color:var(--dim)">No feedback yet</td></tr>';
+
   } catch(e) { console.error(e); }
 }
 

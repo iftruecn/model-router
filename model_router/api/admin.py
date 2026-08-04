@@ -11,7 +11,7 @@ Endpoints:
     PUT  /admin/models/{id}      — Update a model's selection_mode
     POST /admin/models/batch     — Batch update multiple models
     GET  /admin/models/stats     — Routing statistics
-    GET  /admin/learning         — Learning + cost statistics (v1.0.2)
+    GET  /admin/learning         — Learning + cost statistics (v1.2.0)
     POST /admin/feedback/{rid}   — Explicit feedback for a request (v1.0.2)
     GET  /admin/preset           — Current routing preset (v1.0.2)
     PUT  /admin/preset/{name}    — Set routing preset (v1.0.2)
@@ -32,6 +32,7 @@ from pydantic import BaseModel, Field
 
 from model_router.config.defaults import ROUTING_PRESETS
 from model_router.config.validator import validate_config
+from model_router.runtime import AppContext
 from model_router.core.cache import semantic_cache
 from model_router.core.capabilities import capability_registry
 from model_router.core.evaluator import offline_evaluator
@@ -268,23 +269,45 @@ async def routing_stats() -> dict:
 # ------------------------------------------------------------------
 
 @router.get("/learning")
-async def learning_stats() -> dict:
+async def learning_stats(request: Request) -> dict:
     """
     Learning + cost statistics.
 
     Shows Gaussian TS progress (shadow/active mode), routing diversity
     guard status, tracked (task, model) pairs, and quantified cost savings.
     """
+    ctx: AppContext = request.app.state.ctx
+    # Feedback stats from request log (v1.2.0)
+    all_requests = ctx.memory.recent_requests(limit=10000)
+    feedback_entries = [r for r in all_requests if r.get("feedback")]
+    feedback_positive = sum(1 for r in feedback_entries if r.get("feedback") == "positive")
+    feedback_negative = sum(1 for r in feedback_entries if r.get("feedback") == "negative")
+    recent_feedback = [
+        {
+            "request_id": r.get("request_id", "")[:8],
+            "task": r.get("task", ""),
+            "model": r.get("final_model", ""),
+            "feedback": r.get("feedback", ""),
+        }
+        for r in reversed(all_requests) if r.get("feedback")
+    ][:20]
+
     return {
-        "learning": learner.get_stats(),
-        "diversity": diversity_guard.get_stats(),
-        "cost": memory_store.get_cost_stats(),
-        "recent_requests": memory_store.recent_requests(limit=10),
+        "learning": ctx.learner.get_stats(),
+        "diversity": ctx.guard.get_stats(),
+        "cost": ctx.memory.get_cost_stats(),
+        "recent_requests": ctx.memory.recent_requests(limit=10),
+        "feedback": {
+            "total": len(feedback_entries),
+            "positive": feedback_positive,
+            "negative": feedback_negative,
+            "recent": recent_feedback,
+        },
     }
 
 
 @router.post("/feedback/{request_id}")
-async def submit_feedback(request_id: str, req: FeedbackRequest) -> dict:
+async def submit_feedback(request_id: str, req: FeedbackRequest, request: Request) -> dict:
     """
     Submit explicit feedback for a completed request.
 
@@ -296,8 +319,9 @@ async def submit_feedback(request_id: str, req: FeedbackRequest) -> dict:
         POST /admin/feedback/9f2c...  {"feedback": "positive"}
     """
     init_language(req.lang)
+    ctx: AppContext = request.app.state.ctx
 
-    entry = memory_store.get_request(request_id)
+    entry = ctx.memory.get_request(request_id)
     if entry is None:
         raise HTTPException(
             status_code=404,
@@ -306,13 +330,15 @@ async def submit_feedback(request_id: str, req: FeedbackRequest) -> dict:
         )
 
     positive = req.feedback == "positive"
-    await learner.apply_feedback(
+    await ctx.learner.apply_feedback(
         task=entry.get("task", "chat"),
         final_model=entry.get("final_model", ""),
         failed_models=entry.get("failed_models", []),
         positive=positive,
     )
-    await memory_store.save()
+    # Mark request log entry with feedback (for dashboard visualization)
+    entry["feedback"] = req.feedback
+    await ctx.memory.save()
 
     logger.info(
         "Feedback %s for request %s -> model %s",
@@ -368,12 +394,15 @@ async def set_preset(name: str, lang: str = "en") -> dict:
 # ------------------------------------------------------------------
 
 @router.get("/evaluate")
-async def evaluate_learning(limit: int = 1000) -> dict:
+async def evaluate_learning(request: Request, limit: int = 1000) -> dict:
     """
     Offline evaluation report: replay the request log and quantify
     how much self-learning improved routing (read-only, no mutation).
     """
-    return offline_evaluator.evaluate(limit=limit)
+    ctx: AppContext = request.app.state.ctx
+    from model_router.core.evaluator import OfflineEvaluator
+    ev = OfflineEvaluator(memory=ctx.memory)
+    return ev.evaluate(limit=limit)
 
 
 # ------------------------------------------------------------------

@@ -12,7 +12,7 @@ Usage:
     model-router setup --lang zh    # Force Chinese
     python -m model_router serve    # Same as above
 
-Environment overrides (v1.0.3, needed for Docker):
+Environment overrides (v1.2.0, needed for Docker):
     MODEL_ROUTER_HOST       Bind host (default 127.0.0.1; use 0.0.0.0 in containers)
     MODEL_ROUTER_PORT       Bind port (default 6060)
 """

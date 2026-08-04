@@ -1,5 +1,5 @@
 """
-Provider forwarding layer (v1.1.0).
+Provider forwarding layer (v1.2.0).
 
 Bridges the routing decision to actual model provider API calls.
 Handles:
