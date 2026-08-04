@@ -1,4 +1,4 @@
-"""
+﻿"""
 Provider forwarding layer (v1.0.7).
 
 Bridges the routing decision to actual model provider API calls.
@@ -26,6 +26,7 @@ import httpx
 
 from model_router.config.defaults import DEFAULT_FORWARDING_CONCURRENCY
 from model_router.core.cache import semantic_cache
+from model_router.core.quality import quality_checker
 from model_router.core.fallback import (
     FallbackManager,
     fallback_manager,
@@ -109,6 +110,22 @@ async def _forward_non_streaming_inner(
             response_body = await _call_provider(model_key, model_cfg, request_data)
             latency_ms = (time.time() - start_time) * 1000
 
+            # Quality check: verify response is not empty/refusal/repetitive
+            response_text = _extract_response_text(response_body)
+            quality_result = quality_checker.check(
+                response_text=response_text,
+                model_key=model_key,
+                models_config=models_config,
+                max_tokens=request_data.get("max_tokens"),
+            )
+            if not quality_result.passed:
+                logger.warning(
+                    "Quality check failed for %s: %s",
+                    model_key, quality_result.reason,
+                )
+                failed_models.append(model_key)
+                continue  # try next model in fallback chain
+
             # Success! Record fallback trail
             if failed_models:
                 routing.record_fallback(failed_models, model_key)
@@ -134,7 +151,7 @@ async def _forward_non_streaming_inner(
 
             # Post-response: auto-fill semantic cache
             try:
-                semantic_cache.store(
+                await semantic_cache.async_store(
                     messages=request_data.get("messages", []),
                     response=response_body,
                     model=model_key,
@@ -160,7 +177,7 @@ async def _forward_non_streaming_inner(
             should_retry, category = should_fallback_on_error(status)
             if not should_retry:
                 logger.info(
-                    "Client error %s (%s) — not retrying fallback",
+                    "Client error %s (%s) 鈥?not retrying fallback",
                     status, category,
                 )
                 break
@@ -273,6 +290,22 @@ async def _forward_streaming_inner(
         routing.record_fallback(failed_models, chain[-1] if chain else routing.model_key)
 
     return error_generator(), {}
+
+
+# ------------------------------------------------------------------
+# Response text extraction (for quality checking)
+# ------------------------------------------------------------------
+
+def _extract_response_text(response_body: dict) -> str:
+    """Extract the assistant's response text from OpenAI-format response."""
+    try:
+        choices = response_body.get("choices", [])
+        if choices:
+            message = choices[0].get("message", {})
+            return message.get("content", "")
+    except (AttributeError, IndexError):
+        pass
+    return ""
 
 
 # ------------------------------------------------------------------

@@ -149,6 +149,17 @@ _DASHBOARD_HTML = """<!DOCTYPE html>
 <script>
 async function j(url){ const r = await fetch(url); return r.json(); }
 
+// HTML escape to prevent XSS
+function esc(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
 async function refresh(){
   try {
     const [learn, preset, models, cache, caps] = await Promise.all([
@@ -180,17 +191,17 @@ async function refresh(){
     // Presets
     document.getElementById('presets').innerHTML = preset.available.map(p =>
       '<button class="preset-btn' + (p === preset.current ? ' active' : '') +
-      '" onclick="setPreset(\\'' + p + '\\')">' + p + '</button>').join('');
-
+      '" onclick="setPreset(\\'' + esc(p) + '\\')">' + esc(p) + '</button>').join('');
+    
     // Models table
     document.getElementById('model_count').textContent = models.length;
     document.getElementById('models').innerHTML = models.slice(0, 20).map(m =>
-      '<tr><td>' + m.id + '</td><td>' + (m.provider || '—') + '</td><td>' +
-      '<span class="badge badge-' + m.selection_mode + '">' + m.selection_mode + '</span></td><td>$' +
+      '<tr><td>' + esc(m.id) + '</td><td>' + esc(m.provider || '\u2014') + '</td><td>' +
+      '<span class="badge badge-' + esc(m.selection_mode) + '">' + esc(m.selection_mode) + '</span></td><td>$' +
       (m.cost_per_1k_input || 0).toFixed(4) + '</td><td>' +
-      '<button class="toggle-btn" onclick="toggleMode(\\'' + m.id + '\\',\\'' +
+      '<button class="toggle-btn" onclick="toggleMode(\\'' + esc(m.id) + '\\',\\'' +
       (m.selection_mode === 'auto' ? 'manual' : 'auto') + '\\')">' +
-      (m.selection_mode === 'auto' ? '→ manual' : '→ auto') + '</button></td></tr>'
+      (m.selection_mode === 'auto' ? '\u2192 manual' : '\u2192 auto') + '</button></td></tr>'
     ).join('') || '<tr><td colspan="5" style="color:var(--dim)">No models registered</td></tr>';
 
     // Cache stats
@@ -212,7 +223,7 @@ async function refresh(){
         '<div class="stat-row"><span class="stat-label">No capabilities declared</span></div>';
     } else {
       document.getElementById('cap_stats').innerHTML = capKeys.map(k =>
-        '<div class="stat-row"><span>' + k + '</span><span class="badge badge-on">declared</span></div>'
+        '<div class="stat-row"><span>' + esc(k) + '</span><span class="badge badge-on">declared</span></div>'
       ).join('');
     }
 
@@ -225,24 +236,24 @@ async function refresh(){
 
     // Learned table
     document.getElementById('learned').innerHTML = (l.top_learned || []).map(r =>
-      '<tr><td>' + r.pair.replace('|', ' → ') + '</td><td>' + r.mu.toFixed(3) +
+      '<tr><td>' + esc(r.pair.replace('|', ' \u2192 ')) + '</td><td>' + r.mu.toFixed(3) +
       '</td><td>' + r.n + '</td></tr>').join('') ||
       '<tr><td colspan="3" style="color:var(--dim)">No learning data yet</td></tr>';
-
+    
     // Recent requests (with latency)
     document.getElementById('recent').innerHTML = (learn.recent_requests || []).map(r =>
-      '<tr><td>' + (r.request_id || '').slice(0, 8) + '</td><td>' + (r.task || '') +
-      '</td><td>' + (r.final_model || '') + '</td><td><span class="badge">' +
-      (r.routing_mode || '') + '</span></td><td>' + (r.preset || '') + '</td><td>' +
-      (r.latency_ms ? r.latency_ms.toFixed(0) + 'ms' : '—') + '</td></tr>')
+      '<tr><td>' + esc((r.request_id || '').slice(0, 8)) + '</td><td>' + esc(r.task || '') +
+      '</td><td>' + esc(r.final_model || '') + '</td><td><span class="badge">' +
+      esc(r.routing_mode || '') + '</span></td><td>' + esc(r.preset || '') + '</td><td>' +
+      (r.latency_ms ? r.latency_ms.toFixed(0) + 'ms' : '\u2014') + '</td></tr>')
       .reverse().join('') ||
       '<tr><td colspan="6" style="color:var(--dim)">No requests yet</td></tr>';
   } catch(e) { console.error(e); }
 }
 
 function sr(label, value) {
-  return '<div class="stat-row"><span class="stat-label">' + label +
-    '</span><span>' + value + '</span></div>';
+  return '<div class="stat-row"><span class="stat-label">' + esc(label) +
+    '</span><span>' + esc(value) + '</span></div>';
 }
 
 async function setPreset(name){

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Tests for the provider forwarding layer (v1.0.7).
 
 Covers:
@@ -82,7 +82,7 @@ class TestForwardNonStreaming:
             new_callable=AsyncMock,
         ) as mock_call:
             mock_call.return_value = {
-                "choices": [{"message": {"role": "assistant", "content": "hello"}}]
+                "choices": [{"message": {"role": "assistant", "content": "This is a valid response that is long enough to pass the quality check threshold of 80 characters for flash models."}}]
             }
 
             response, headers = await forward_non_streaming(
@@ -94,7 +94,7 @@ class TestForwardNonStreaming:
             )
 
             assert "choices" in response
-            assert response["choices"][0]["message"]["content"] == "hello"
+            assert response["choices"][0]["message"]["content"] == "This is a valid response that is long enough to pass the quality check threshold of 80 characters for flash models."
             mock_call.assert_called_once()
 
     @pytest.mark.asyncio
@@ -113,7 +113,7 @@ class TestForwardNonStreaming:
             # First call raises timeout, second succeeds
             mock_call.side_effect = [
                 httpx.TimeoutException("timeout"),
-                {"choices": [{"message": {"role": "assistant", "content": "fallback ok"}}]},
+                {"choices": [{"message": {"role": "assistant", "content": "This is a valid response that is long enough to pass the quality check threshold of 80 characters for flash models."}}]},
             ]
 
             response, headers = await forward_non_streaming(

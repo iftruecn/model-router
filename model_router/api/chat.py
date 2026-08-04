@@ -1,4 +1,4 @@
-"""
+﻿"""
 Chat completions route for Model Router v1.0.9.
 
 Handles both streaming and non-streaming requests,
@@ -30,11 +30,11 @@ router = APIRouter()
 
 def _observe_agent_capabilities(request: Request) -> None:
     """
-    In-band hot sensing (FR-热感知 §2.2): compare the capability
+    In-band hot sensing (FR-鐑劅鐭?搂2.2): compare the capability
     fingerprint riding on this request with the known one; refresh
     instantly when the full declaration comes along.
 
-    Best-effort: any failure is swallowed — sensing never breaks routing.
+    Best-effort: any failure is swallowed 鈥?sensing never breaks routing.
     """
     fingerprint = request.headers.get("x-agent-capabilities", "")
     if not fingerprint:
@@ -43,7 +43,7 @@ def _observe_agent_capabilities(request: Request) -> None:
     full_b64 = request.headers.get("x-agent-capabilities-full", "")
     try:
         result = capability_registry.observe(agent_id, fingerprint, full_b64)
-    except Exception as exc:  # noqa: BLE001 — isolation is a hard constraint
+    except Exception as exc:  # noqa: BLE001 鈥?isolation is a hard constraint
         logger.warning("Capability sensing failed (ignored): %s", exc)
         return
     if result.get("action") == "hot_updated":
@@ -82,7 +82,7 @@ async def chat_completions(request: Request) -> Any:
 
     # Semantic cache: similar non-streaming questions short-circuit here
     if not is_streaming:
-        cached = semantic_cache.lookup(request_data.get("messages", []))
+        cached = await semantic_cache.async_lookup(request_data.get("messages", []))
         if cached is not None:
             logger.info(
                 "Request %s served from semantic cache "

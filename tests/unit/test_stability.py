@@ -1,4 +1,4 @@
-"""
+﻿"""
 Tests for forwarding layer stability (v1.0.9, gap-analysis #1).
 
 Covers:
@@ -95,7 +95,7 @@ class TestNetworkDisconnect:
             # First call: connection error; second call: success
             mock_call.side_effect = [
                 httpx.ConnectError("Connection refused"),
-                {"choices": [{"message": {"role": "assistant", "content": "ok"}}]},
+                {"choices": [{"message": {"role": "assistant", "content": "This is a valid response that is long enough to pass the quality check threshold of 80 characters for flash models."}}]},
             ]
 
             response, headers = await forward_non_streaming(
@@ -141,7 +141,7 @@ class TestMalformedJSON:
     async def test_malformed_json_response(
         self, routing_result, models_config, fallback_chain_config
     ):
-        """Provider returns invalid JSON — should be caught as exception."""
+        """Provider returns invalid JSON 鈥?should be caught as exception."""
         request_data = {"messages": [{"role": "user", "content": "hi"}]}
 
         with patch(
@@ -175,7 +175,7 @@ class TestMalformedJSON:
         ) as mock_call:
             mock_call.side_effect = [
                 json.JSONDecodeError("Expecting value", "", 0),
-                {"choices": [{"message": {"role": "assistant", "content": "ok"}}]},
+                {"choices": [{"message": {"role": "assistant", "content": "This is a valid response that is long enough to pass the quality check threshold of 80 characters for flash models."}}]},
             ]
 
             response, headers = await forward_non_streaming(

@@ -16,6 +16,7 @@ Design constraints:
 - Misses and hits are counted for the offline evaluator
 """
 
+import asyncio
 import logging
 import threading
 import time
@@ -136,6 +137,18 @@ class SemanticCache:
             while len(self._entries) > self.capacity:
                 self._entries.popitem(last=False)
         return True
+
+    # ------------------------------------------------------------------
+    # Async wrappers (avoid blocking event loop with threading.Lock)
+    # ------------------------------------------------------------------
+
+    async def async_lookup(self, messages: list) -> dict | None:
+        """Async version of lookup() — runs in thread pool to avoid blocking."""
+        return await asyncio.to_thread(self.lookup, messages)
+
+    async def async_store(self, messages: list, response: dict, model: str = "") -> bool:
+        """Async version of store() — runs in thread pool to avoid blocking."""
+        return await asyncio.to_thread(self.store, messages, response, model)
 
     # ------------------------------------------------------------------
     # Admin helpers

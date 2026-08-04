@@ -1,23 +1,23 @@
-"""
+﻿"""
 Admin API for runtime model configuration and learning control.
 
 Allows agents and users to configure model selection modes,
-routing presets, and submit feedback — no config file editing needed.
+routing presets, and submit feedback 鈥?no config file editing needed.
 
 Multilingual: Supports EN, ZH, JA, KO, ES, FR, DE.
 
 Endpoints:
-    GET  /admin/models           — List all models with current config
-    PUT  /admin/models/{id}      — Update a model's selection_mode
-    POST /admin/models/batch     — Batch update multiple models
-    GET  /admin/models/stats     — Routing statistics
-    GET  /admin/learning         — Learning + cost statistics (v1.0.2)
-    POST /admin/feedback/{rid}   — Explicit feedback for a request (v1.0.2)
-    GET  /admin/preset           — Current routing preset (v1.0.2)
-    PUT  /admin/preset/{name}    — Set routing preset (v1.0.2)
-    GET  /admin/evaluate         — Offline evaluation report (v1.0.4)
-    GET  /admin/capabilities     — Agent capability declarations (v1.0.4)
-    PUT  /admin/capabilities     — Declare agent capabilities (v1.0.4)
+    GET  /admin/models           鈥?List all models with current config
+    PUT  /admin/models/{id}      鈥?Update a model's selection_mode
+    POST /admin/models/batch     鈥?Batch update multiple models
+    GET  /admin/models/stats     鈥?Routing statistics
+    GET  /admin/learning         鈥?Learning + cost statistics (v1.0.2)
+    POST /admin/feedback/{rid}   鈥?Explicit feedback for a request (v1.0.2)
+    GET  /admin/preset           鈥?Current routing preset (v1.0.2)
+    PUT  /admin/preset/{name}    鈥?Set routing preset (v1.0.2)
+    GET  /admin/evaluate         鈥?Offline evaluation report (v1.0.4)
+    GET  /admin/capabilities     鈥?Agent capability declarations (v1.0.4)
+    PUT  /admin/capabilities     鈥?Declare agent capabilities (v1.0.4)
 """
 
 import logging
@@ -401,7 +401,7 @@ async def get_capabilities() -> dict:
 async def put_capabilities(req: CapabilitiesRequest) -> dict:
     """
     Declare (or replace) the host agent's capabilities. Static declaration
-    only in v1.0.4 — actual borrowing hooks arrive in v1.1+.
+    only in v1.0.4 鈥?actual borrowing hooks arrive in v1.1+.
 
     Sending an empty capabilities map retracts all declarations.
     """
@@ -415,7 +415,7 @@ async def put_capabilities(req: CapabilitiesRequest) -> dict:
 
 
 # ------------------------------------------------------------------
-# Semantic cache endpoints (FR-Qoder-v2-platform §FR-P1)
+# Semantic cache endpoints (FR-Qoder-v2-platform 搂FR-P1)
 # ------------------------------------------------------------------
 
 class CacheSeedRequest(BaseModel):
@@ -443,9 +443,9 @@ async def cache_clear() -> dict:
 async def cache_seed(req: CacheSeedRequest) -> dict:
     """
     Pre-seed the cache with a known Q/A pair. Useful while provider
-    forwarding is pending — agents can populate answers themselves.
+    forwarding is pending 鈥?agents can populate answers themselves.
     """
-    stored = semantic_cache.store(req.messages, req.response, model=req.model)
+    stored = await semantic_cache.async_store(req.messages, req.response, model=req.model)
     return {
         "stored": stored,
         "key": semantic_cache.build_key(req.messages) if stored else "",
