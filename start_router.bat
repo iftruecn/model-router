@@ -1,8 +1,7 @@
 @echo off
 REM Model Router 自启动脚本
 REM 放入 shell:startup 或手动运行
-REM 依赖: D:\AI\Hermes\venv\ 中的 Python
 
-cd /d D:\AI\py\model_router
-start "ModelRouter" /min D:\AI\Hermes\venv\Scripts\python.exe model_router_server.py
+cd /d "%~dp0"
+python -m uvicorn model_router.app:app --host 127.0.0.1 --port 6060
 echo Model Router started (http://127.0.0.1:6060)

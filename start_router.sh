@@ -9,4 +9,4 @@ echo "Starting Model Router..."
 echo "Endpoint: http://127.0.0.1:6060"
 echo "API Docs: http://127.0.0.1:6060/docs"
 
-python3 model_router_server.py
+python3 -m uvicorn model_router.app:app --host 127.0.0.1 --port 6060
