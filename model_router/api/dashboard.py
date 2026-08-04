@@ -303,7 +303,7 @@ async function refresh(){
     // Presets
     document.getElementById('presets').innerHTML = preset.available.map(p =>
       '<button class="preset-btn' + (p === preset.current ? ' active' : '') +
-      '" onclick="setPreset(\\'' + esc(p) + '\\')">' + esc(p) + '</button>').join('');
+      '" data-preset="' + esc(p) + '">' + esc(p) + '</button>').join('');
     
     // Models table
     document.getElementById('model_count').textContent = models.length;
@@ -311,8 +311,8 @@ async function refresh(){
       '<tr><td>' + esc(m.id) + '</td><td>' + esc(m.provider || '\u2014') + '</td><td>' +
       '<span class="badge badge-' + esc(m.selection_mode) + '">' + esc(m.selection_mode) + '</span></td><td>$' +
       (m.cost_per_1k_input || 0).toFixed(4) + '</td><td>' +
-      '<button class="toggle-btn" onclick="toggleMode(\\'' + esc(m.id) + '\\',\\'' +
-      (m.selection_mode === 'auto' ? 'manual' : 'auto') + '\\')">' +
+      '<button class="toggle-btn" data-toggle="' + esc(m.id) + '" data-mode="' +
+      (m.selection_mode === 'auto' ? 'manual' : 'auto') + '">' +
       (m.selection_mode === 'auto' ? t('to_manual') : t('to_auto')) + '</button></td></tr>'
     ).join('') || '<tr><td colspan="5" style="color:var(--dim)">' + t('no_models') + '</td></tr>';
 
@@ -499,10 +499,10 @@ async function loadAgents() {
     const agentTypes = Object.keys(agents);
 
     let tabs = '<button class="agent-tab' + (currentAgent === 'all' ? ' active' : '') +
-      '" onclick="switchAgent(\'all\')">' + t('all') + '</button>';
+      '" data-agent="all">' + t('all') + '</button>';
     agentTypes.forEach(at => {
       tabs += '<button class="agent-tab' + (currentAgent === at ? ' active' : '') +
-        '" onclick="switchAgent(\'' + esc(at) + '\')">' + esc(at) + '</button>';
+        '" data-agent="' + esc(at) + '">' + esc(at) + '</button>';
     });
     document.getElementById('agent_tabs').innerHTML = tabs;
 
@@ -556,6 +556,15 @@ refresh();
 loadAgents();
 setInterval(refresh, 10000);
 setInterval(loadAgents, 15000);
+// Event delegation for dynamic buttons (replaces inline onclick)
+document.addEventListener('click', function(e) {
+  var p = e.target.closest('[data-preset]');
+  if (p) { setPreset(p.dataset.preset); return; }
+  var tg = e.target.closest('[data-toggle]');
+  if (tg) { toggleMode(tg.dataset.toggle, tg.dataset.mode); return; }
+  var ag = e.target.closest('[data-agent]');
+  if (ag) { switchAgent(ag.dataset.agent); return; }
+});
 </script>
 </body>
 </html>

@@ -597,8 +597,8 @@ class _LazyApp:
     def __getattr__(self, name):
         return getattr(self._ensure(), name)
 
-    def __call__(self, *args, **kwargs):
-        return self._ensure()(*args, **kwargs)
+    async def __call__(self, scope, receive, send):
+        return await self._ensure()(scope, receive, send)
 
 
 app = _LazyApp()  # type: ignore[assignment]
