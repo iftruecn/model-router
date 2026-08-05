@@ -1,10 +1,8 @@
 # 🧠 Model Router — Multi-Model Intelligent Routing Proxy
 
-> by **iftrue-hermes** · [MIT License](LICENSE) · v1.6.0
+> by **iftrue-hermes** · [MIT License](LICENSE) · v1.9.0
 >
-> **Self-learning routing for AI agents & coding tools** — picks the right model for every task, falls back automatically when output is poor, and gets smarter over time.
->
-> **面向 AI Agent 与编程工具的自学习路由代理** — 按任务复杂度自动选模型、输出不满意自动换模型、越用越准。
+> **Zero-dependency smart routing for AI agents** — picks the cheapest capable model for every task, falls back on poor output, learns from every interaction, and knows which models can handle images/video/tools.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue)](https://python.org)
@@ -13,9 +11,9 @@
 
 ## Why
 
-AI agents (Hermes, OpenClaw, Claude Code, Codex...) all use LLMs — but they don't know which model is best for each request. Simple "hello" burns expensive tokens on pro models; complex reasoning gets unsatisfying results from flash models.
+AI agents use many LLMs — but can't tell which one to use for each request. "Hello" burns expensive pro tokens; complex reasoning gets poor results from flash models; image requests go to text-only models.
 
-**Model Router** sits between your agent and your LLM providers as a local OpenAI-compatible proxy. It auto-routes each request to the best model, checks output quality, and learns from every interaction. Zero configuration needed if you already have an agent installed.
+**Model Router** is a local OpenAI-compatible proxy. It analyzes each request, checks what each model can actually do, and routes to the cheapest capable one — automatically. Zero new dependencies, zero configuration if you already have an agent.
 
 ---
 
@@ -23,15 +21,16 @@ AI agents (Hermes, OpenClaw, Claude Code, Codex...) all use LLMs — but they do
 
 | Feature | Description |
 |---------|-------------|
-| ⚡ **Zero-Config Startup** | Auto-detects your agent (Hermes/OpenClaw) and inherits API keys, models, and parameters. No config file needed. |
-| 🔌 **One-Click Install** | `model-router install --all` — auto-injects router into all your agents. No manual config editing. |
+| ⚡ **Zero-Config Startup** | Auto-detects your agent (Hermes/OpenClaw) and inherits API keys, models, and parameters |
+| 🏷️ **Model Capability Awareness** | Knows what each model can do (text/image/video/audio/tools) — never routes image requests to text-only models (v1.9.0) |
 | 🎯 **7-Domain Classifier** | coding, reasoning, math, creative, translation, vision, chat — multilingual (EN/ZH/JA/KO/ES/FR/DE) |
-| 🔄 **Quality Fallback** | Output too short/empty/repetitive? Auto-retry with next model. Only open-source implementation. |
-| 🧠 **Self-Learning** | Gaussian Thompson Sampling — learns which model is best for each task type over time |
+| 🔄 **Quality Fallback** | Output too short/empty/refusal/repetitive? Auto-retry with next model |
+| 🧠 **Self-Learning** | Gaussian Thompson Sampling — learns which model is best for each task, progressive handoff from static rules |
 | 💾 **Semantic Cache** | Similar questions return cached answers (bigram Jaccard, zero new deps) |
-| 🛡️ **Param Auto-Adaptation** | Auto-fixes incompatible parameters (e.g., `reasoning_effort=ultra` → `high` for DeepSeek) |
-| 🔐 **API Key Security** | SHA-256 hashing, constant-time comparison, full-chain masking in logs/dashboard |
-| 📊 **Dashboard** | Real-time multi-agent view, per-agent stats, human feedback, cost tracking |
+| 🛡️ **Param Auto-Adaptation** | Auto-fixes incompatible parameters per provider |
+| 🔐 **API Key Security** | SHA-256 hashing, constant-time comparison, full-chain masking |
+| 📊 **Dashboard + Admin UI** | Real-time stats, cost tracking, model management, human feedback, 7-language i18n |
+| 🎚️ **Routing Presets** | intelligence / balance / cost — one-click trade-off |
 | 🐳 **Docker Ready** | `docker compose up -d` |
 
 ---
@@ -39,24 +38,28 @@ AI agents (Hermes, OpenClaw, Claude Code, Codex...) all use LLMs — but they do
 ## Quick Start
 
 ```bash
-# Clone
 git clone https://github.com/iftruecn/model-router.git
 cd model-router
-
-# Install
 pip install -e .
-
-# Start (zero config — auto-detects your agent!)
-python -m model_router
-# → http://127.0.0.1:6060
-
-# One-click install into your agents:
-model-router install --all
+model-router serve          # → http://127.0.0.1:6060
 ```
 
-**Already have Hermes or OpenClaw?** That's it. Router auto-detects your agent config and inherits all API keys and models. No `config.yaml` needed.
+Point any OpenAI-compatible client to `http://127.0.0.1:6060/v1`.
 
-Point any OpenAI-compatible client to `http://127.0.0.1:6060/v1` and it just works.
+---
+
+## How Routing Works
+
+```
+User request → Domain classifier (coding? reasoning? creative?)
+             → Modality filter (need image input? generate image?)
+             → 3D scoring (capability × cost × speed)
+             → Self-learning adjustment (Gaussian TS, progressive handoff)
+             → Diversity guard (anti-collapse)
+             → Best model selected
+```
+
+Transparency headers: `X-Routed-To`, `X-Routing-Reason`, `X-Routing-Mode`, `X-Routing-Preset`.
 
 ---
 
@@ -70,9 +73,14 @@ Point any OpenAI-compatible client to `http://127.0.0.1:6060/v1` and it just wor
 
 ---
 
-## Dashboard
+## Endpoints
 
-`http://127.0.0.1:6060/dashboard` — multi-agent view with per-agent stats, cost tracking, model management, human feedback (👍/👎), Why-this-model decision explainability.
+| URL | Purpose |
+|-----|---------|
+| `http://127.0.0.1:6060/v1/chat/completions` | Main API (OpenAI-compatible) |
+| `http://127.0.0.1:6060/dashboard` | Dashboard (multi-agent, cost, feedback) |
+| `http://127.0.0.1:6060/admin` | Admin UI (model management, presets, cache) |
+| `http://127.0.0.1:6060/health` | Health check |
 
 ---
 
@@ -80,11 +88,12 @@ Point any OpenAI-compatible client to `http://127.0.0.1:6060/v1` and it just wor
 
 ```
 model_router/
-├── core/          Routing engine, classifier, learner, quality, cache, security
-├── api/           REST endpoints (chat, admin, dashboard, keys)
-├── providers/     Connection pool, model registry
+├── core/          Routing engine, classifier, learner, quality, cache, fallback, auth, security
+├── api/           REST endpoints (chat, streaming, admin, dashboard, keys)
+├── providers/     Connection pool, model registry (with modality filtering)
 ├── cli/           Setup wizard, model discovery, one-click install
-├── config/        Defaults, validator, pricing, agent auto-inheritance
+├── config/        Defaults, model metadata (capabilities), pricing, validator, auto-inheritance
+├── locales/       7-language i18n
 ├── app.py         FastAPI application factory
 └── runtime.py     AppContext container
 ```
@@ -95,10 +104,10 @@ model_router/
 
 | Version | Milestone |
 |:--:|------|
-| v1.4.0 | Zero-config startup, Agent auto-inheritance (Hermes/OpenClaw), param adaptation |
-| v1.5.0 | Multi-agent unified access, one-click install, Dashboard multi-agent view |
-| v1.6.0 | Full P0/P1/P2 sweep (35 fixes from Hermes + WorkBuddy + Trae + LobsterAI review) |
-| v1.7.0 | Distributed deployment, cluster routing, cross-node cache sharing (planned) |
+| v1.7.0 | Dashboard 7-language i18n, full P2/P3 sweep, module docstring unification |
+| v1.8.0 | 32 fixes (quad-review), Admin UI, data-attr event delegation, startup crash fix |
+| v1.9.0 | **Model capability awareness** — modality filtering (text/image/video/audio/tools), input/output_modalities, empty-candidate guard |
+| v1.10.0 | stdlib TF-IDF lightweight classifier (replacing regex), session routing stickiness (planned) |
 
 ---
 
@@ -108,4 +117,4 @@ MIT © 2026 **iftrue-hermes**
 
 ---
 
-*Reviewed by Hermes, WorkBuddy, Trae, and LobsterAI — 35 issues resolved across 4 review rounds.*
+*Reviewed by Hermes, WorkBuddy, Trae, LobsterAI, Kun, 顺手 (AutoClaw), 产品经理, 产品设计师 — 8 reviewers across 6 review rounds.*

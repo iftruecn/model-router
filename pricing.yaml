@@ -1,4 +1,4 @@
-# Model Router pricing configuration (v1.0.9)
+# Model Router pricing configuration (v1.9.0)
 # Per-token pricing in USD.
 # Used by forwarding layer to calculate cost from response.usage.
 #
