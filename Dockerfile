@@ -1,4 +1,4 @@
-# Model Router — Docker image (v1.8.0)
+# Model Router — Docker image (v1.9.0)
 # One-command deploy: docker compose up -d
 FROM python:3.12-slim
 

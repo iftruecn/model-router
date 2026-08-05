@@ -116,16 +116,15 @@ class SemanticCache:
                     best_key, best_entry, best_score = norm_key, entry, score
             if best_entry is not None and best_score >= self.sim_threshold:
                 self._entries.move_to_end(best_key)  # LRU touch
-                with self._lock:
-                    self.hits += 1
+                self.hits += 1  # already inside self._lock
                 return {
                     "response": best_entry["response"],
                     "similarity": round(best_score, 4),
                     "age_seconds": round(now - best_entry["ts"], 1),
                     "model": best_entry.get("model", ""),
                 }
-        self.misses += 1
-        return None
+            self.misses += 1  # inside lock
+            return None
 
     def store(self, messages: list, response: dict, model: str = "") -> bool:
         """Store a non-streaming answer for future similar questions."""

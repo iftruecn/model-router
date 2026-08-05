@@ -73,6 +73,11 @@ class AgentRegistry:
     def _registry_path(self) -> Path:
         return Path(self._data_dir) / AGENT_REGISTRY_FILE
 
+    async def _load_async(self):
+        """Load registry from disk (async wrapper)."""
+        import asyncio
+        await asyncio.to_thread(self._load)
+
     def _load(self):
         """Load registry from disk."""
         path = self._registry_path()

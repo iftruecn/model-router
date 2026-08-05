@@ -54,11 +54,19 @@ class ModelProfile:
     cost_per_1k_input: float = 0.0
     cost_per_1k_output: float = 0.0
     latency_tier: str = "medium"  # fast / medium / slow
-    supports_vision: bool = False
+    input_modalities: list = field(default_factory=lambda: ["text"])
+    output_modalities: list = field(default_factory=lambda: ["text"])
+    supports_tool_call: bool = True
+    supports_reasoning: bool = False
     supports_streaming: bool = True
     overall_score: float = 0.0  # from online leaderboard
     source: str = "local"  # "local", "enhanced"
     selection_mode: str = "auto"  # "auto" = router can select, "manual" = user must explicitly request
+
+    @property
+    def supports_vision(self) -> bool:
+        """v1.9.0: Derived from input_modalities — True if model accepts image input."""
+        return "image" in self.input_modalities
 
     def get_capability(self, domain: str) -> float:
         """Get capability score for a domain (0-10)."""
@@ -160,6 +168,9 @@ class ModelRegistry:
         requires_vision: bool = False,
         min_context_window: int = 0,
         auto_only: bool = False,
+        required_input: Optional[list[str]] = None,
+        required_output: Optional[list[str]] = None,
+        requires_tool_call: Optional[bool] = None,
     ) -> list[ModelProfile]:
         """
         Get candidate models matching constraints.
@@ -167,14 +178,25 @@ class ModelRegistry:
         Only returns models the agent has registered.
 
         Args:
-            requires_vision: Filter for vision-capable models
+            requires_vision: Filter for vision-capable models (deprecated: use required_input=["image"])
             min_context_window: Minimum context window size
             auto_only: If True, only return models with selection_mode="auto"
-                       (excludes expensive manual-only models like DALL-E, Sora)
+            required_input: List of required input modalities (e.g. ["image"])
+            required_output: List of required output modalities (e.g. ["image"])
+            requires_tool_call: If True, only return models supporting tool calls
         """
         candidates = []
         for profile in self._profiles.values():
-            if requires_vision and not profile.supports_vision:
+            # v1.9.0: modality-based filtering (replaces supports_vision)
+            if requires_vision and "image" not in profile.input_modalities:
+                continue
+            if required_input:
+                if not all(m in profile.input_modalities for m in required_input):
+                    continue
+            if required_output:
+                if not all(m in profile.output_modalities for m in required_output):
+                    continue
+            if requires_tool_call is True and not profile.supports_tool_call:
                 continue
             if profile.context_window < min_context_window:
                 continue
@@ -198,6 +220,12 @@ class ModelRegistry:
     def _load_from_agent_config(self, models_config: dict) -> None:
         """Build profiles from the agent's model configuration."""
         for key, cfg in models_config.items():
+            # v1.9.0: populate modality fields from enriched config
+            input_mod = cfg.get("input_modalities", ["text"])
+            output_mod = cfg.get("output_modalities", ["text"])
+            # Backward compat: if old config has multimodal=True but no input_modalities, add image
+            if cfg.get("multimodal", False) and "image" not in input_mod:
+                input_mod = list(input_mod) + ["image"]
             profile = ModelProfile(
                 model_id=cfg.get("model", key),
                 name=cfg.get("name", key),
@@ -208,7 +236,10 @@ class ModelRegistry:
                 cost_per_1k_input=cfg.get("cost_per_1k_input", 0.0),
                 cost_per_1k_output=cfg.get("cost_per_1k_output", 0.0),
                 latency_tier=cfg.get("latency_tier", "medium"),
-                supports_vision=cfg.get("multimodal", cfg.get("supports_vision", False)),
+                input_modalities=input_mod,
+                output_modalities=output_mod,
+                supports_tool_call=cfg.get("supports_tool_call", True),
+                supports_reasoning=cfg.get("supports_reasoning", False),
                 supports_streaming=cfg.get("supports_streaming", True),
                 selection_mode=cfg.get("selection_mode", "auto"),
                 source="local",

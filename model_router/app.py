@@ -130,6 +130,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         models_config=models_config or {},
         fallback_chain_config=getattr(app.state, "fallback_chain_config", {}),
     )
+    from model_router.core.agent_registry import get_agent_registry
+    ctx.agent_registry = get_agent_registry(data_dir=data_dir)
     app.state.ctx = ctx
 
     # 7. Snapshot env API keys for change detection (v1.3.0)
@@ -485,7 +487,6 @@ def _load_config_from_yaml() -> tuple[dict, dict]:
             from model_router.config.agent_discovery import discover_all_agents
 
             registry = get_agent_registry(data_dir=MEMORY_DEFAULT_DATA_DIR)
-            ctx.agent_registry = registry
             all_agents = discover_all_agents()
 
             for agent in all_agents:

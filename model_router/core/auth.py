@@ -218,7 +218,7 @@ class KeyManager:
         path = os.path.join(self._data_dir, AUTH_KEYS_FILE)
         tmp = path + ".tmp"
         with self._lock:
-            data = {"schema_version": AUTH_SCHEMA_VERSION, "keys": self._keys}
+            data = {"schema_version": AUTH_SCHEMA_VERSION, "keys": dict(self._keys)}
         try:
             await asyncio.to_thread(self._save_keys_sync, tmp, path, data)
         except Exception as exc:

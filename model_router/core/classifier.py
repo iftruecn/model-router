@@ -55,6 +55,10 @@ class QueryFeatures:
     message_count: int = 0
     is_ultra_short: bool = False
     matched_patterns: list = field(default_factory=list)
+    # v1.9.0: modality-aware routing fields
+    requires_image_generate: bool = False
+    requires_tool_call: bool = False
+    classifier_source: str = "regex"  # v1.10.0 placeholder: "regex" | "tfidf"
 
     @property
     def primary_domain(self) -> str:
@@ -77,6 +81,8 @@ class QueryFeatures:
             "primary_score": self.primary_score,
             "domain_scores": self.domain_scores,
             "requires_vision": self.requires_vision,
+            "requires_image_generate": self.requires_image_generate,
+            "requires_tool_call": self.requires_tool_call,
             "estimated_complexity": self.estimated_complexity,
             "context_length": self.context_length,
             "is_ultra_short": self.is_ultra_short,
@@ -261,8 +267,65 @@ class DomainClassifier:
         if features.primary_score < 0.5:
             features.domain_scores["chat"] = max(features.domain_scores.get("chat", 0), 0.5)
 
+        # 7. v1.9.0: Detect image generation intent
+        if self._detect_image_generation(user_text):
+            features.requires_image_generate = True
+
+        # 8. v1.9.0: Detect tool call requirement (from request_data if available)
+        # Note: requires_tool_call is typically set by router from request_data["tools"]
+        # Here we detect from text patterns as fallback
+        if self._detect_tool_call_intent(user_text):
+            features.requires_tool_call = True
+
         logger.debug("Query features: %s", features.to_dict())
         return features
+
+    def _detect_image_generation(self, text: str) -> bool:
+        """
+        v1.9.0: Detect if user wants to generate an image.
+
+        Keyword-based detection for image generation intent.
+        This is deterministic, not semantic inference.
+        """
+        # English patterns
+        en_patterns = [
+            r"(generate|create|make|draw|paint)\s+(an?\s+)?(image|picture|photo|illustration|artwork|drawing)",
+            r"(generate|create|make)\s+(a\s+)?(picture|image)\s+of",
+            r"image\s+generation",
+            r"dall-?e",
+            r"midjourney",
+            r"stable\s+diffusion",
+        ]
+        # Chinese patterns
+        zh_patterns = [
+            r"(生成|创建|画|制作|绘制).{0,4}(图片|图像|照片|插画|画作)",
+            r"(画一[张幅个只]).{0,6}(图|画|照片)",
+            r"画一[张幅个只].{1,8}$",  # "画一只猫", "画一朵花" - object at end
+            r"(图片|图像|照片).{0,4}(生成|创建)",
+            r"生图",
+            r"画图",
+        ]
+        for p in en_patterns + zh_patterns:
+            if re.search(p, text, re.IGNORECASE):
+                return True
+        return False
+
+    def _detect_tool_call_intent(self, text: str) -> bool:
+        """
+        v1.9.0: Detect if user explicitly requests tool/function calling.
+
+        Note: The primary detection is from request_data["tools"] field,
+        done in router._auto_route(). This is a text-based fallback.
+        """
+        patterns = [
+            r"(use|call)\s+(tool|function|plugin)",
+            r"(function|tool)\s+call(ing)?",
+            r"(调用|使用).{0,4}(工具|函数|插件)",
+        ]
+        for p in patterns:
+            if re.search(p, text, re.IGNORECASE):
+                return True
+        return False
 
     def _estimate_complexity(
         self,

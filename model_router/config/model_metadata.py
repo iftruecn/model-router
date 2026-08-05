@@ -1,9 +1,9 @@
 """
-Built-in model metadata for Model Router v1.7.0.
+Built-in model metadata for Model Router v1.9.0.
 
 Fallback table when /v1/models doesn't return full metadata.
 Contains real parameters for popular models — context windows,
-max output tokens, supported features.
+max output tokens, supported features, input/output modalities.
 
 Maintained by the team. Update as providers release new models.
 """
@@ -21,6 +21,8 @@ MODEL_METADATA: dict[str, dict] = {
         "context_window": 64000,
         "max_output_tokens": 8192,
         "supports_vision": False,
+        "input_modalities": ["text"],
+        "output_modalities": ["text"],
         "supports_tool_call": True,
         "supports_reasoning": False,
         "reasoning_effort_values": ["low", "medium", "high"],
@@ -30,6 +32,8 @@ MODEL_METADATA: dict[str, dict] = {
         "context_window": 262144,
         "max_output_tokens": 8192,
         "supports_vision": False,
+        "input_modalities": ["text"],
+        "output_modalities": ["text"],
         "supports_tool_call": True,
         "supports_reasoning": False,
         "reasoning_effort_values": ["low", "medium", "high"],
@@ -39,6 +43,8 @@ MODEL_METADATA: dict[str, dict] = {
         "context_window": 262144,
         "max_output_tokens": 8192,
         "supports_vision": False,
+        "input_modalities": ["text"],
+        "output_modalities": ["text"],
         "supports_tool_call": True,
         "supports_reasoning": True,
         "reasoning_effort_values": ["low", "medium", "high"],
@@ -48,6 +54,8 @@ MODEL_METADATA: dict[str, dict] = {
         "context_window": 64000,
         "max_output_tokens": 8192,
         "supports_vision": False,
+        "input_modalities": ["text"],
+        "output_modalities": ["text"],
         "supports_tool_call": False,
         "supports_reasoning": True,
         "reasoning_effort_values": ["low", "medium", "high"],
@@ -58,6 +66,8 @@ MODEL_METADATA: dict[str, dict] = {
         "context_window": 128000,
         "max_output_tokens": 16384,
         "supports_vision": True,
+        "input_modalities": ["text", "image"],
+        "output_modalities": ["text"],
         "supports_tool_call": True,
         "supports_reasoning": False,
         "tier": "pro",
@@ -66,6 +76,8 @@ MODEL_METADATA: dict[str, dict] = {
         "context_window": 128000,
         "max_output_tokens": 16384,
         "supports_vision": True,
+        "input_modalities": ["text", "image"],
+        "output_modalities": ["text"],
         "supports_tool_call": True,
         "supports_reasoning": False,
         "tier": "flash",
@@ -74,6 +86,8 @@ MODEL_METADATA: dict[str, dict] = {
         "context_window": 200000,
         "max_output_tokens": 100000,
         "supports_vision": True,
+        "input_modalities": ["text", "image"],
+        "output_modalities": ["text"],
         "supports_tool_call": True,
         "supports_reasoning": True,
         "reasoning_effort_values": ["low", "medium", "high"],
@@ -84,6 +98,8 @@ MODEL_METADATA: dict[str, dict] = {
         "context_window": 200000,
         "max_output_tokens": 8192,
         "supports_vision": True,
+        "input_modalities": ["text", "image"],
+        "output_modalities": ["text"],
         "supports_tool_call": True,
         "supports_reasoning": False,
         "tier": "pro",
@@ -92,6 +108,8 @@ MODEL_METADATA: dict[str, dict] = {
         "context_window": 200000,
         "max_output_tokens": 8192,
         "supports_vision": False,
+        "input_modalities": ["text"],
+        "output_modalities": ["text"],
         "supports_tool_call": True,
         "supports_reasoning": False,
         "tier": "flash",
@@ -101,6 +119,8 @@ MODEL_METADATA: dict[str, dict] = {
         "context_window": 1048576,
         "max_output_tokens": 8192,
         "supports_vision": True,
+        "input_modalities": ["text", "image", "audio", "video"],
+        "output_modalities": ["text"],
         "supports_tool_call": True,
         "supports_reasoning": False,
         "tier": "flash",
@@ -109,6 +129,8 @@ MODEL_METADATA: dict[str, dict] = {
         "context_window": 1048576,
         "max_output_tokens": 65536,
         "supports_vision": True,
+        "input_modalities": ["text", "image", "audio", "video"],
+        "output_modalities": ["text"],
         "supports_tool_call": True,
         "supports_reasoning": True,
         "tier": "pro",
@@ -118,6 +140,8 @@ MODEL_METADATA: dict[str, dict] = {
         "context_window": 128000,
         "max_output_tokens": 4096,
         "supports_vision": True,
+        "input_modalities": ["text", "image"],
+        "output_modalities": ["text"],
         "supports_tool_call": True,
         "supports_reasoning": False,
         "tier": "pro",
@@ -126,6 +150,8 @@ MODEL_METADATA: dict[str, dict] = {
         "context_window": 256000,
         "max_output_tokens": 4096,
         "supports_vision": False,
+        "input_modalities": ["text"],
+        "output_modalities": ["text"],
         "supports_tool_call": True,
         "supports_reasoning": False,
         "tier": "pro",
@@ -172,5 +198,10 @@ def enrich_model_config(model_cfg: dict) -> dict:
         enriched["supports_tool_call"] = meta.get("supports_tool_call", False)
     if "supports_reasoning" not in enriched:
         enriched["supports_reasoning"] = meta.get("supports_reasoning", False)
+    # v1.9.0: modality fields
+    if "input_modalities" not in enriched:
+        enriched["input_modalities"] = meta.get("input_modalities", ["text"])
+    if "output_modalities" not in enriched:
+        enriched["output_modalities"] = meta.get("output_modalities", ["text"])
 
     return enriched

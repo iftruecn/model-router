@@ -113,12 +113,19 @@ async def chat_completions(request: Request) -> Any:
 
     # Route the request (explicit model selection is respected inside)
     ctx: AppContext = request.app.state.ctx
-    routing = await ctx.router.route(
-        messages=request_data.get("messages", []),
-        models_config=models_config,
-        request_data=request_data,
-        request_id=request_id,
-    )
+    try:
+        routing = await ctx.router.route(
+            messages=request_data.get("messages", []),
+            models_config=models_config,
+            request_data=request_data,
+            request_id=request_id,
+        )
+    except Exception as exc:
+        logger.error("Routing failed for %s: %s", request_id, exc)
+        return JSONResponse(
+            status_code=500,
+            content={"error": {"message": "Routing failed", "type": "routing_error"}},
+        )
 
     if is_streaming:
         return await _handle_streaming(

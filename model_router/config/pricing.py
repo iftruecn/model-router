@@ -95,8 +95,8 @@ def _load_pricing_data() -> dict[str, dict[str, float]]:
         return {}
     except ImportError:
         logger.debug("PyYAML not installed, using built-in parser for pricing.yaml")
-        logger.warning("PyYAML not available, pricing data not loaded")
-        return {}
+        # Three-level fallback: PyYAML -> built-in parser -> empty
+        return _load_yaml_builtin(yaml_path)
     except Exception as exc:
         logger.warning("Failed to load pricing.yaml: %s", exc)
         return {}

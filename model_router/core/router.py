@@ -1,5 +1,5 @@
 """
-Smart routing engine for Model Router v1.7.0.
+Smart routing engine for Model Router v1.9.0.
 
 Combines query feature extraction (classifier) with model capability
 profiles (registry) to select the best model for each query.
@@ -288,15 +288,56 @@ class SmartRouter:
         requires_vision = features.requires_vision
         min_context = self._estimate_context_needed(features)
 
-        # 3. Get auto-selectable candidates only
+        # v1.9.0: modality-aware filtering
+        required_input = None
+        required_output = None
+        requires_tool_call = None
+
+        # Image input detection (deterministic: content[].type == "image_url")
+        if features.requires_vision:
+            required_input = ["image"]
+
+        # Image generation intent detection
+        if features.requires_image_generate:
+            required_output = ["image"]
+
+        # Tool call detection (primary: from request_data["tools"])
+        if "tools" in request_data and request_data["tools"]:
+            requires_tool_call = True
+        elif features.requires_tool_call:
+            requires_tool_call = True
+
+        # 3. Get auto-selectable candidates with modality filtering
         candidates = self._registry.get_auto_candidates(
             requires_vision=requires_vision,
             min_context_window=min_context,
+            required_input=required_input,
+            required_output=required_output,
+            requires_tool_call=requires_tool_call,
         )
 
         # Fallback: if no candidates from registry, build from config (auto only)
         if not candidates:
             candidates = self._build_auto_profiles_from_config(models_config)
+            # Apply modality filtering to fallback candidates too
+            candidates = self._filter_by_modality(
+                candidates, required_input, required_output, requires_tool_call
+            )
+
+        # v1.9.0: Empty candidate — return early, do NOT fall through to
+        # _find_first_auto_model() which ignores modality constraints
+        if not candidates:
+            logger.warning(
+                "No candidates after modality filter (input=%s, output=%s, tool_call=%s)",
+                required_input, required_output, requires_tool_call,
+            )
+            return RoutingResult(
+                model_key="",
+                model_name="",
+                score=0.0,
+                reason=f"no_candidate_matching_modality(input={required_input}, output={required_output})",
+                preset=active_preset,
+            )
 
         # 4. Resolve weights (preset, per-request override wins)
         preset_override = request_data.get("routing_preset")
@@ -516,6 +557,25 @@ class SmartRouter:
             base *= 1.5
         return max(4096, int(base))
 
+    def _filter_by_modality(
+        self,
+        candidates: list,
+        required_input: Optional[list[str]],
+        required_output: Optional[list[str]],
+        requires_tool_call: Optional[bool],
+    ) -> list:
+        """v1.9.0: Filter candidate list by modality constraints."""
+        filtered = []
+        for p in candidates:
+            if required_input and not all(m in p.input_modalities for m in required_input):
+                continue
+            if required_output and not all(m in p.output_modalities for m in required_output):
+                continue
+            if requires_tool_call is True and not p.supports_tool_call:
+                continue
+            filtered.append(p)
+        return filtered
+
     def _build_auto_profiles_from_config(self, models_config: dict) -> list[ModelProfile]:
         """Fallback: build ModelProfile list from config (auto models only)."""
         profiles = []
@@ -523,6 +583,10 @@ class SmartRouter:
             # Skip manual models in auto-routing
             if cfg.get("selection_mode", "auto") == "manual":
                 continue
+            # v1.9.0: derive input_modalities from multimodal flag
+            input_mod = cfg.get("input_modalities", ["text"])
+            if cfg.get("multimodal", False) and "image" not in input_mod:
+                input_mod = list(input_mod) + ["image"]
             profile = ModelProfile(
                 model_id=cfg.get("model", key),
                 name=cfg.get("name", key),
@@ -532,7 +596,9 @@ class SmartRouter:
                 cost_per_1k_input=cfg.get("cost_per_1k_input", 0.0),
                 cost_per_1k_output=cfg.get("cost_per_1k_output", 0.0),
                 latency_tier=cfg.get("latency_tier", "medium"),
-                supports_vision=cfg.get("multimodal", False),
+                input_modalities=input_mod,
+                output_modalities=cfg.get("output_modalities", ["text"]),
+                supports_tool_call=cfg.get("supports_tool_call", True),
                 selection_mode=cfg.get("selection_mode", "auto"),
                 source="config_fallback",
             )

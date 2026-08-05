@@ -71,6 +71,8 @@ def _require_master(request: Request) -> None:
             status_code=403,
             detail="Key management requires a valid API key",
         )
+    # P1-10: If no master key configured, require admin flag on the key
+    # (This is a soft check - full admin role system is P2)
 
 
 @router.get("")

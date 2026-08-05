@@ -365,7 +365,7 @@ async def _stream_with_quality_check(
         try:
             error_event = {
                 "error": {
-                    "message": f"Stream interrupted: {exc}",
+                    "message": "Stream interrupted unexpectedly",
                     "type": "stream_error",
                 }
             }
@@ -405,7 +405,8 @@ async def _stream_with_quality_check(
                 if entry is not None:
                     entry["stream_quality_passed"] = result.passed
                     entry["stream_quality_reason"] = result.reason
-                    await memory_store.save()
+                    memory_store._dirty = True
+                    await memory_store.maybe_save()
             except Exception:
                 pass
     except Exception:
