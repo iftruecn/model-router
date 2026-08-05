@@ -120,7 +120,7 @@ _DASHBOARD_HTML = """<!DOCTYPE html>
   </select>
 </div>
 <h1>🧠 <span data-i18n="title">Model Router — Dashboard</span></h1>
-<div class="sub"><span data-i18n="auto_refresh">auto-refresh every 10s</span> · <a href="/docs" style="color:var(--blue)" data-i18n="api_docs">API docs</a> · <a href="/admin/models" style="color:var(--blue)" data-i18n="admin_api">Admin API</a></div>
+<div class="sub"><span data-i18n="auto_refresh">auto-refresh every 10s</span> · <a href="/docs" style="color:var(--blue)" data-i18n="api_docs">API docs</a> · <a href="/admin" style="color:var(--blue)" data-i18n="admin_api">Admin API</a></div>
 
 <!-- Stats Cards -->
 <div class="cards">

@@ -485,6 +485,7 @@ def _load_config_from_yaml() -> tuple[dict, dict]:
             from model_router.config.agent_discovery import discover_all_agents
 
             registry = get_agent_registry(data_dir=MEMORY_DEFAULT_DATA_DIR)
+            ctx.agent_registry = registry
             all_agents = discover_all_agents()
 
             for agent in all_agents:

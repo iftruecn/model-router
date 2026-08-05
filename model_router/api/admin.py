@@ -28,6 +28,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from model_router.config.defaults import ROUTING_PRESETS
@@ -746,6 +747,227 @@ async def admin_agents(request: Request) -> dict:
     P1-1 fix: use AppContext for consistency with other endpoints.
     """
     ctx: AppContext = request.app.state.ctx
+    if ctx.agent_registry is None:
+        return {"agents": []}
     stats = ctx.agent_registry.get_agent_stats()
     return {"agents": stats}
 
+
+# ------------------------------------------------------------------
+# Admin UI (v1.8.0)
+# ------------------------------------------------------------------
+
+_ADMIN_UI_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Model Router — Admin</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0a0a0f;color:#e0e0e0;padding:20px;max-width:1200px;margin:0 auto}
+h1{font-size:1.5em;margin-bottom:8px}
+h2{font-size:1.2em;margin:24px 0 12px;color:#7eb8ff;border-bottom:1px solid #1a1a2e;padding-bottom:6px}
+.sub{color:#888;font-size:0.85em;margin-bottom:20px}
+.sub a{color:#7eb8ff;text-decoration:none}
+.sub a:hover{text-decoration:underline}
+.card{background:#12121a;border:1px solid #1a1a2e;border-radius:8px;padding:16px;margin-bottom:16px}
+table{width:100%;border-collapse:collapse;font-size:0.9em}
+th,td{text-align:left;padding:8px 12px;border-bottom:1px solid #1a1a2e}
+th{color:#888;font-weight:500;font-size:0.8em;text-transform:uppercase}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:500}
+.badge-auto{background:#1a3a1a;color:#4caf50}
+.badge-manual{background:#3a1a1a;color:#f44336}
+.btn{padding:6px 14px;border:1px solid #333;border-radius:4px;background:#1a1a2e;color:#e0e0e0;cursor:pointer;font-size:0.85em;transition:all .15s}
+.btn:hover{background:#252540;border-color:#555}
+.btn-active{background:#1a3a1a;border-color:#4caf50;color:#4caf50}
+.btn-sm{padding:4px 10px;font-size:0.8em}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px}
+.stat{background:#12121a;border:1px solid #1a1a2e;border-radius:8px;padding:14px;text-align:center}
+.stat .label{color:#888;font-size:0.75em;text-transform:uppercase;margin-bottom:4px}
+.stat .value{font-size:1.4em;font-weight:600}
+.green{color:#4caf50}.blue{color:#2196f3}.orange{color:#ff9800}.red{color:#f44336}
+.preset-btn{margin-right:8px}
+.preset-btn.active{background:#1a3a1a;border-color:#4caf50;color:#4caf50}
+#toast{position:fixed;bottom:20px;right:20px;background:#1a3a1a;color:#4caf50;padding:10px 20px;border-radius:6px;display:none;font-size:0.9em;z-index:999}
+.lang-bar{text-align:right;margin-bottom:12px}
+.lang-bar select{background:#12121a;color:#e0e0e0;border:1px solid #333;border-radius:4px;padding:4px 8px;font-size:0.85em}
+</style>
+</head>
+<body>
+<div class="lang-bar">
+  <select id="lang_selector" onchange="setLang(this.value)">
+    <option value="en">English</option>
+    <option value="zh">中文</option>
+    <option value="ja">日本語</option>
+    <option value="ko">한국어</option>
+    <option value="es">Español</option>
+    <option value="fr">Français</option>
+    <option value="de">Deutsch</option>
+  </select>
+</div>
+<h1 data-i18n="title">Model Router — Admin</h1>
+<div class="sub">
+  <a href="/dashboard" data-i18n="dashboard">Dashboard</a> &middot;
+  <a href="/docs" data-i18n="api_docs">API Docs</a> &middot;
+  <a href="/admin/models" data-i18n="json_api">JSON API</a>
+</div>
+
+<!-- Stats -->
+<h2 data-i18n="overview">Overview</h2>
+<div class="stats">
+  <div class="stat"><div class="label" data-i18n="total_models">Total Models</div><div class="value blue" id="total_models">—</div></div>
+  <div class="stat"><div class="label">Auto</div><div class="value green" id="auto_count">—</div></div>
+  <div class="stat"><div class="label">Manual</div><div class="value orange" id="manual_count">—</div></div>
+  <div class="stat"><div class="label" data-i18n="current_preset">Current Preset</div><div class="value blue" id="current_preset">—</div></div>
+</div>
+
+<!-- Models -->
+<h2 data-i18n="models">Models</h2>
+<div class="card">
+  <table>
+    <thead><tr><th data-i18n="th_model">Model</th><th data-i18n="th_provider">Provider</th><th data-i18n="th_mode">Mode</th><th data-i18n="th_cost_in">Cost/1K In</th><th data-i18n="th_cost_out">Cost/1K Out</th><th data-i18n="th_latency">Latency</th><th data-i18n="th_action">Action</th></tr></thead>
+    <tbody id="models_body"><tr><td colspan="7" style="color:#888" data-i18n="loading">Loading...</td></tr></tbody>
+  </table>
+</div>
+
+<!-- Presets -->
+<h2 data-i18n="routing_preset">Routing Preset</h2>
+<div class="card" id="preset_card">
+  <div style="color:#888" data-i18n="loading">Loading...</div>
+</div>
+
+<!-- Cache -->
+<h2 data-i18n="semantic_cache">Semantic Cache</h2>
+<div class="stats" id="cache_stats">
+  <div class="stat"><div class="label" data-i18n="entries">Entries</div><div class="value" id="cache_entries">—</div></div>
+  <div class="stat"><div class="label" data-i18n="hit_rate">Hit Rate</div><div class="value green" id="cache_hit_rate">—</div></div>
+  <div class="stat"><div class="label" data-i18n="total_hits">Total Hits</div><div class="value blue" id="cache_hits">—</div></div>
+  <div class="stat"><div class="label" data-i18n="total_queries">Total Queries</div><div class="value" id="cache_queries">—</div></div>
+</div>
+
+<!-- Learning -->
+<h2 data-i18n="learning">Learning</h2>
+<div class="stats" id="learning_stats">
+  <div class="stat"><div class="label" data-i18n="total_feedback">Total Feedback</div><div class="value" id="total_feedback">—</div></div>
+  <div class="stat"><div class="label" data-i18n="positive">Positive</div><div class="value green" id="positive_fb">—</div></div>
+  <div class="stat"><div class="label" data-i18n="negative">Negative</div><div class="value red" id="negative_fb">—</div></div>
+  <div class="stat"><div class="label" data-i18n="samples_learned">Samples Learned</div><div class="value blue" id="samples_learned">—</div></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const I18N={
+en:{title:"Model Router \u2014 Admin",dashboard:"Dashboard",api_docs:"API Docs",json_api:"JSON API",overview:"Overview",total_models:"Total Models",current_preset:"Current Preset",models:"Models",routing_preset:"Routing Preset",semantic_cache:"Semantic Cache",learning:"Learning",th_model:"Model",th_provider:"Provider",th_mode:"Mode",th_cost_in:"Cost/1K In",th_cost_out:"Cost/1K Out",th_latency:"Latency",th_action:"Action",entries:"Entries",hit_rate:"Hit Rate",total_hits:"Total Hits",total_queries:"Total Queries",total_feedback:"Total Feedback",positive:"Positive",negative:"Negative",samples_learned:"Samples Learned",loading:"Loading...",set_manual:"Set Manual",set_auto:"Set Auto",language:"Language"},
+zh:{title:"Model Router \u2014 \u7ba1\u7406",dashboard:"\u4eea\u8868\u76d8",api_docs:"API \u6587\u6863",json_api:"JSON API",overview:"\u6982\u89c8",total_models:"\u6a21\u578b\u603b\u6570",current_preset:"\u5f53\u524d\u9884\u8bbe",models:"\u6a21\u578b",routing_preset:"\u8def\u7531\u9884\u8bbe",semantic_cache:"\u8bed\u4e49\u7f13\u5b58",learning:"\u5b66\u4e60",th_model:"\u6a21\u578b",th_provider:"\u63d0\u4f9b\u5546",th_mode:"\u6a21\u5f0f",th_cost_in:"\u8d39\u7528/1K \u8f93\u5165",th_cost_out:"\u8d39\u7528/1K \u8f93\u51fa",th_latency:"\u5ef6\u8fdf",th_action:"\u64cd\u4f5c",entries:"\u6761\u76ee\u6570",hit_rate:"\u547d\u4e2d\u7387",total_hits:"\u603b\u547d\u4e2d",total_queries:"\u603b\u67e5\u8be2",total_feedback:"\u603b\u53cd\u9988",positive:"\u6b63\u9762",negative:"\u8d1f\u9762",samples_learned:"\u5df2\u5b66\u4e60\u6837\u672c",loading:"\u52a0\u8f7d\u4e2d...",set_manual:"\u2192 \u624b\u52a8",set_auto:"\u2192 \u81ea\u52a8",language:"\u8bed\u8a00"},
+ja:{title:"Model Router \u2014 \u7ba1\u7406",dashboard:"\u30c0\u30c3\u30b7\u30e5\u30dc\u30fc\u30c9",api_docs:"API\u30c9\u30ad\u30e5\u30e1\u30f3\u30c8",json_api:"JSON API",overview:"\u6982\u8981",total_models:"\u30e2\u30c7\u30eb\u7dcf\u6570",current_preset:"\u73fe\u5728\u306e\u30d7\u30ea\u30bb\u30c3\u30c8",models:"\u30e2\u30c7\u30eb",routing_preset:"\u30eb\u30fc\u30c6\u30a3\u30f3\u30b0\u30d7\u30ea\u30bb\u30c3\u30c8",semantic_cache:"\u30bb\u30de\u30f3\u30c6\u30a3\u30c3\u30af\u30ad\u30e3\u30c3\u30b7\u30e5",learning:"\u5b66\u7fd2",th_model:"\u30e2\u30c7\u30eb",th_provider:"\u30d7\u30ed\u30d0\u30a4\u30c0\u30fc",th_mode:"\u30e2\u30fc\u30c9",th_cost_in:"\u30b3\u30b9\u30c8/1K \u5165\u529b",th_cost_out:"\u30b3\u30b9\u30c8/1K \u51fa\u529b",th_latency:"\u30ec\u30a4\u30c6\u30f3\u30b7",th_action:"\u64cd\u4f5c",entries:"\u30a8\u30f3\u30c8\u30ea\u30fc\u6570",hit_rate:"\u30d2\u30c3\u30c8\u7387",total_hits:"\u30c8\u30fc\u30bf\u30eb\u30d2\u30c3\u30c8",total_queries:"\u30c8\u30fc\u30bf\u30eb\u30af\u30a8\u30ea",total_feedback:"\u30c8\u30fc\u30bf\u30eb\u30d5\u30a3\u30fc\u30c9\u30d0\u30c3\u30af",positive:"\u80af\u5b9a",negative:"\u5426\u5b9a",samples_learned:"\u5b66\u7fd2\u30b5\u30f3\u30d7\u30eb\u6570",loading:"\u8aad\u307f\u8fbc\u307f\u4e2d...",set_manual:"\u2192 \u624b\u52d5",set_auto:"\u2192 \u81ea\u52d5",language:"\u8a00\u8a9e"},
+ko:{title:"Model Router \u2014 \uad00\ub9ac",dashboard:"\ub300\uc2dc\ubcf4\ub4dc",api_docs:"API \ubb38\uc11c",json_api:"JSON API",overview:"\uac1c\uc694",total_models:"\ubaa8\ub378 \ucd1d \uc218",current_preset:"\ud604\uc7ac \ud504\ub9ac\uc14b",models:"\ubaa8\ub378",routing_preset:"\ub77c\uc6b0\ud305 \ud504\ub9ac\uc14b",semantic_cache:"\uc138\ub9cc\ud2f1 \uce90\uc2dc",learning:"\ud559\uc2b5",th_model:"\ubaa8\ub378",th_provider:"\uc81c\uacf5\uc790",th_mode:"\ubaa8\ub4dc",th_cost_in:"\ube44\uc6a9/1K \uc785\ub825",th_cost_out:"\ube44\uc6a9/1K \ucd9c\ub825",th_latency:"\ub808\uc774\ud150\uc2dc",th_action:"\uc791\uc5c5",entries:"\ud56d\ubaa9 \uc218",hit_rate:"\ud788\ud2b8\uc728",total_hits:"\ucd1d \ud788\ud2b8",total_queries:"\ucd1d \ucffc\ub9ac",total_feedback:"\ucd1d \ud53c\ub4dc\ubc31",positive:"\uae0d\uc815",negative:"\ubd80\uc815",samples_learned:"\ud559\uc2b5 \uc0d8\ud50c",loading:"\ub85c\ub529 \uc911...",set_manual:"\u2192 \uc218\ub3d9",set_auto:"\u2192 \uc790\ub3d9",language:"\uc5b8\uc5b4"},
+es:{title:"Model Router \u2014 Admin",dashboard:"Panel",api_docs:"Docs API",json_api:"JSON API",overview:"Resumen",total_models:"Total modelos",current_preset:"Preajuste actual",models:"Modelos",routing_preset:"Preajuste de enrutamiento",semantic_cache:"Cach\u00e9 sem\u00e1ntica",learning:"Aprendizaje",th_model:"Modelo",th_provider:"Proveedor",th_mode:"Modo",th_cost_in:"Costo/1K Entrada",th_cost_out:"Costo/1K Salida",th_latency:"Latencia",th_action:"Acci\u00f3n",entries:"Entradas",hit_rate:"Tasa de acierto",total_hits:"Aciertos totales",total_queries:"Consultas totales",total_feedback:"Retroalimentaci\u00f3n total",positive:"Positivo",negative:"Negativo",samples_learned:"Muestras aprendidas",loading:"Cargando...",set_manual:"\u2192 manual",set_auto:"\u2192 auto",language:"Idioma"},
+fr:{title:"Model Router \u2014 Admin",dashboard:"Tableau de bord",api_docs:"Docs API",json_api:"JSON API",overview:"Aper\u00e7u",total_models:"Total mod\u00e8les",current_preset:"Pr\u00e9r\u00e9glage actuel",models:"Mod\u00e8les",routing_preset:"Pr\u00e9r\u00e9glage routage",semantic_cache:"Cache s\u00e9mantique",learning:"Apprentissage",th_model:"Mod\u00e8le",th_provider:"Fournisseur",th_mode:"Mode",th_cost_in:"Co\u00fbt/1K Entr\u00e9e",th_cost_out:"Co\u00fbt/1K Sortie",th_latency:"Latence",th_action:"Action",entries:"Entr\u00e9es",hit_rate:"Taux de hit",total_hits:"Hits totaux",total_queries:"Requ\u00eates totales",total_feedback:"Retour total",positive:"Positif",negative:"N\u00e9gatif",samples_learned:"\u00c9chantillons appris",loading:"Chargement...",set_manual:"\u2192 manuel",set_auto:"\u2192 auto",language:"Langue"},
+de:{title:"Model Router \u2014 Admin",dashboard:"Dashboard",api_docs:"API-Dokumentation",json_api:"JSON API",overview:"\u00dcbersicht",total_models:"Modelle gesamt",current_preset:"Aktuelle Voreinstellung",models:"Modelle",routing_preset:"Routing-Voreinstellung",semantic_cache:"Semantischer Cache",learning:"Lernen",th_model:"Modell",th_provider:"Anbieter",th_mode:"Modus",th_cost_in:"Kosten/1K Eingang",th_cost_out:"Kosten/1K Ausgang",th_latency:"Latenz",th_action:"Aktion",entries:"Eintr\u00e4ge",hit_rate:"Trefferquote",total_hits:"Gesamttreffer",total_queries:"Gesamtabfragen",total_feedback:"Gesamtfeedback",positive:"Positiv",negative:"Negativ",samples_learned:"Gelernte Samples",loading:"Laden...",set_manual:"\u2192 manuell",set_auto:"\u2192 auto",language:"Sprache"}
+};
+function t(k){const l=window._mrLang||'en';return(I18N[l]&&I18N[l][k])||I18N.en[k]||k}
+function detectLang(){const p=new URLSearchParams(window.location.search);const u=p.get('lang');if(u&&I18N[u])return u;const s=localStorage.getItem('mr_lang');if(s&&I18N[s])return s;const n=(navigator.language||'en').split('-')[0].toLowerCase();if(I18N[n])return n;return'en'}
+function setLang(l){if(!I18N[l])return;window._mrLang=l;localStorage.setItem('mr_lang',l);applyI18n();const s=document.getElementById('lang_selector');if(s)s.value=l}
+function applyI18n(){document.querySelectorAll('[data-i18n]').forEach(el=>{const k=el.getAttribute('data-i18n');const v=t(k);if(el.tagName==='INPUT'||el.tagName==='TEXTAREA')el.placeholder=v;else el.textContent=v});document.title=t('title');document.documentElement.lang=window._mrLang||'en'}
+window._mrLang=detectLang();
+applyI18n();
+
+function esc(s){if(!s)return"";var d=document.createElement("div");d.textContent=s;return d.innerHTML}
+function toast(msg){var tt=document.getElementById("toast");tt.textContent=msg;tt.style.display="block";setTimeout(function(){tt.style.display="none"},2000)}
+async function j(url){var r=await fetch(url);return r.json()}
+
+async function loadModels(){
+  var models=await j("/admin/models");
+  document.getElementById("total_models").textContent=models.length;
+  var autoC=0,manualC=0;
+  models.forEach(function(m){if(m.selection_mode==="auto")autoC++;else manualC++});
+  document.getElementById("auto_count").textContent=autoC;
+  document.getElementById("manual_count").textContent=manualC;
+  var tbody=document.getElementById("models_body");
+  if(!models.length){tbody.innerHTML='<tr><td colspan=7 style=color:#888>'+t('loading')+'</td></tr>';return}
+  tbody.innerHTML=models.map(function(m){
+    var badge=m.selection_mode==="auto"?"badge-auto":"badge-manual";
+    var btnText=m.selection_mode==="auto"?t('set_manual'):t('set_auto');
+    var newMode=m.selection_mode==="auto"?"manual":"auto";
+    return '<tr><td>'+esc(m.id)+'</td><td>'+esc(m.provider||"—")+'</td>'+
+      '<td><span class="badge '+badge+'">'+esc(m.selection_mode)+'</span></td>'+
+      '<td>$'+(m.cost_per_1k_input||0).toFixed(4)+'</td>'+
+      '<td>$'+(m.cost_per_1k_output||0).toFixed(4)+'</td>'+
+      '<td>'+esc(m.latency_tier||"—")+'</td>'+
+      '<td><button class="btn btn-sm" data-toggle="'+esc(m.id)+'" data-mode="'+newMode+'">'+btnText+'</button></td></tr>';
+  }).join("");
+}
+
+async function toggleMode(modelId,newMode){
+  try{
+    var r=await fetch("/admin/models/"+encodeURIComponent(modelId),{
+      method:"PUT",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({selection_mode:newMode})
+    });
+    var d=await r.json();
+    if(r.ok){toast(d.message||"Updated");loadModels()}
+    else{toast("Error: "+(d.detail||"unknown"))}
+  }catch(e){toast("Error: "+e.message)}
+}
+
+async function loadPreset(){
+  var preset=await j("/admin/preset");
+  document.getElementById("current_preset").textContent=preset.current;
+  var card=document.getElementById("preset_card");
+  var descs=preset.descriptions||{};
+  card.innerHTML=preset.available.map(function(p){
+    var cls=p===preset.current?"btn preset-btn active":"btn preset-btn";
+    return '<button class="'+cls+'" data-preset="'+p+'">'+esc(p)+'</button>';
+  }).join("")+'<div style="margin-top:8px;color:#888;font-size:0.85em" id="preset_desc"></div>';
+  var desc=descs[preset.current]||"";
+  document.getElementById("preset_desc").textContent=desc;
+}
+
+async function setPreset(name){
+  try{
+    var r=await fetch("/admin/preset/"+encodeURIComponent(name),{method:"PUT"});
+    var d=await r.json();
+    if(r.ok){toast("Preset: "+name);loadPreset()}
+    else{toast("Error: "+(d.detail||"unknown"))}
+  }catch(e){toast("Error: "+e.message)}
+}
+
+async function loadCache(){
+  var cache=await j("/admin/cache");
+  document.getElementById("cache_entries").textContent=cache.entries||0;
+  document.getElementById("cache_hit_rate").textContent=((cache.hit_rate||0)*100).toFixed(1)+"%";
+  document.getElementById("cache_hits").textContent=cache.hits||cache.total_hits||0;
+  document.getElementById("cache_queries").textContent=cache.queries||cache.total_queries||0;
+}
+
+async function loadLearning(){
+  var learn=await j("/admin/learning");
+  document.getElementById("total_feedback").textContent=learn.total_feedback||0;
+  document.getElementById("positive_fb").textContent=learn.positive||0;
+  document.getElementById("negative_fb").textContent=learn.negative||0;
+  document.getElementById("samples_learned").textContent=learn.samples_learned||learn.total_samples||0;
+}
+
+// Event delegation for data-* buttons
+document.addEventListener("click",function(e){
+  var tgt=e.target;
+  if(tgt.dataset.toggle){toggleMode(tgt.dataset.toggle,tgt.dataset.mode)}
+  if(tgt.dataset.preset){setPreset(tgt.dataset.preset)}
+});
+
+loadModels();loadPreset();loadCache();loadLearning();
+setInterval(loadModels,15000);setInterval(loadCache,10000);
+document.getElementById('lang_selector').value = window._mrLang;
+</script>
+</body>
+</html>
+"""
+
+
+@router.get("", include_in_schema=False)
+async def admin_ui() -> HTMLResponse:
+    """Admin management UI — served at /admin"""
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(_ADMIN_UI_HTML)
