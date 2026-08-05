@@ -38,7 +38,7 @@ dependencies = [
 [project.optional-dependencies]
 # Server dependencies with platform-specific handling
 server = [
-    "uvicorn>=0.30.0,<1.0.0",
+    "uvicorn>=0.52.1,<1.0.0",
     "uvloop>=0.19.0; sys_platform != 'win32'",  # uvloop not available on Windows
     "winloop>=0.1.0; sys_platform == 'win32'",   # Windows alternative
 ]
