@@ -1,7 +1,6 @@
 # Model Router pricing configuration (v1.9.0)
-# Per-token pricing in USD.
-# Used by forwarding layer to calculate cost from response.usage.
-#
+# Per-token pricing in USD per 1K tokens.
+# Source: LiteLLM model_prices_and_context_window.json (2026-08-05 sync).
 # Fuzzy matching: "openrouter/meta-llama/llama-3.1-405b" matches "llama-3.1-405b"
 
 models:
@@ -14,6 +13,16 @@ models:
   gpt-4o-mini:
     input: 0.00015
     output: 0.0006
+    unit: "per_1k_tokens"
+
+  gpt-4.1:
+    input: 0.002
+    output: 0.008
+    unit: "per_1k_tokens"
+
+  o4-mini:
+    input: 0.0011
+    output: 0.0044
     unit: "per_1k_tokens"
 
   gpt-4-turbo:
@@ -52,6 +61,16 @@ models:
     unit: "per_1k_tokens"
 
   # --- Anthropic ---
+  claude-opus-4:
+    input: 0.015
+    output: 0.075
+    unit: "per_1k_tokens"
+
+  claude-sonnet-4:
+    input: 0.003
+    output: 0.015
+    unit: "per_1k_tokens"
+
   claude-3-5-sonnet-20241022:
     input: 0.003
     output: 0.015
@@ -73,6 +92,21 @@ models:
     unit: "per_1k_tokens"
 
   # --- Google ---
+  gemini-2.5-pro:
+    input: 0.00125
+    output: 0.01
+    unit: "per_1k_tokens"
+
+  gemini-2.5-flash:
+    input: 0.0003
+    output: 0.0025
+    unit: "per_1k_tokens"
+
+  gemini-2.0-flash:
+    input: 0.0001
+    output: 0.0004
+    unit: "per_1k_tokens"
+
   gemini-1.5-pro:
     input: 0.00125
     output: 0.005
@@ -83,12 +117,54 @@ models:
     output: 0.0003
     unit: "per_1k_tokens"
 
-  gemini-2.0-flash:
-    input: 0.0001
-    output: 0.0004
+  # --- DeepSeek ---
+  deepseek-v4-pro:
+    input: 0.000435
+    output: 0.00087
     unit: "per_1k_tokens"
 
-  # --- Meta ---
+  deepseek-v4-flash:
+    input: 0.00014
+    output: 0.00028
+    unit: "per_1k_tokens"
+
+  deepseek-chat:
+    input: 0.00028
+    output: 0.00042
+    unit: "per_1k_tokens"
+
+  deepseek-reasoner:
+    input: 0.00028
+    output: 0.00042
+    unit: "per_1k_tokens"
+
+  deepseek-coder:
+    input: 0.00014
+    output: 0.00028
+    unit: "per_1k_tokens"
+
+  # --- xAI Grok ---
+  grok-4:
+    input: 0.003
+    output: 0.015
+    unit: "per_1k_tokens"
+
+  grok-4-fast:
+    input: 0.0002
+    output: 0.0005
+    unit: "per_1k_tokens"
+
+  # --- Meta Llama ---
+  llama-4-maverick:
+    input: 0.00141
+    output: 0.00035
+    unit: "per_1k_tokens"
+
+  llama-4-scout:
+    input: 0.0002
+    output: 0.00078
+    unit: "per_1k_tokens"
+
   llama-3.1-405b:
     input: 0.003
     output: 0.003
@@ -111,8 +187,13 @@ models:
     unit: "per_1k_tokens"
 
   mistral-small:
-    input: 0.0002
-    output: 0.0006
+    input: 0.001
+    output: 0.003
+    unit: "per_1k_tokens"
+
+  codestral:
+    input: 0.001
+    output: 0.003
     unit: "per_1k_tokens"
 
   mixtral-8x7b:
@@ -120,33 +201,27 @@ models:
     output: 0.00024
     unit: "per_1k_tokens"
 
-  # --- DeepSeek ---
-  deepseek-chat:
-    input: 0.00028
-    output: 0.00042
+  # --- Alibaba Qwen ---
+  qwen3-max:
+    input: 0.00211
+    output: 0.00845
     unit: "per_1k_tokens"
 
-  deepseek-coder:
-    input: 0.00014
-    output: 0.00028
+  qwen3-plus:
+    input: 0.0004
+    output: 0.0016
     unit: "per_1k_tokens"
 
-  deepseek-reasoner:
-    input: 0.00028
-    output: 0.00042
+  qwen3-turbo:
+    input: 0.00029
+    output: 0.0012
     unit: "per_1k_tokens"
 
-  deepseek-v4-pro:
-    input: 0.000435
-    output: 0.00087
+  qwen2.5-vl:
+    input: 0.0002
+    output: 0.0006
     unit: "per_1k_tokens"
 
-  deepseek-v4-flash:
-    input: 0.00014
-    output: 0.00028
-    unit: "per_1k_tokens"
-
-  # --- Qwen ---
   qwen-turbo:
     input: 0.0002
     output: 0.0006
@@ -160,4 +235,64 @@ models:
   qwen-max:
     input: 0.002
     output: 0.006
+    unit: "per_1k_tokens"
+
+  # --- Zhipu GLM ---
+  glm-5.2:
+    input: 0.0014
+    output: 0.0044
+    unit: "per_1k_tokens"
+
+  # --- Moonshot Kimi ---
+  kimi-k2.6:
+    input: 0.00095
+    output: 0.004
+    unit: "per_1k_tokens"
+
+  # --- MiniMax ---
+  minimax-m2.7:
+    input: 0.0006
+    output: 0.0024
+    unit: "per_1k_tokens"
+
+  # --- Cohere ---
+  command-r-plus:
+    input: 0.0025
+    output: 0.01
+    unit: "per_1k_tokens"
+
+  command-r:
+    input: 0.00015
+    output: 0.0006
+    unit: "per_1k_tokens"
+
+  # --- Amazon Nova ---
+  amazon-nova-pro:
+    input: 0.0008
+    output: 0.0032
+    unit: "per_1k_tokens"
+
+  amazon-nova-lite:
+    input: 0.00006
+    output: 0.00024
+    unit: "per_1k_tokens"
+
+  # --- NVIDIA ---
+  # nemotron-4: no pricing in LiteLLM (2026-08-05)
+
+  # --- AI21 ---
+  # jamba-2: no pricing in LiteLLM (2026-08-05)
+
+  # --- StepFun ---
+  # step-3-max, step-3-flash: no pricing in LiteLLM (2026-08-05)
+
+  # --- DeepSeek (supplemental) ---
+  deepseek-r1:
+    input: 0.00055
+    output: 0.00219
+    unit: "per_1k_tokens"
+
+  deepseek-v3:
+    input: 0.00027
+    output: 0.0011
     unit: "per_1k_tokens"
