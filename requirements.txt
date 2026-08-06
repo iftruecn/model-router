@@ -11,7 +11,7 @@ uvicorn>=0.30.0,<1.0.0
 # winloop>=0.1.0    # Windows only
 
 # Dev/Test
-pytest>=8.0.0,<9.0.0
+pytest>=9.1.1,<10.0.0
 pytest-asyncio>=0.23.0,<1.0.0
 pytest-timeout>=2.3.0,<3.0.0
 
