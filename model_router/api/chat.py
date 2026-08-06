@@ -127,6 +127,14 @@ async def chat_completions(request: Request) -> Any:
             content={"error": {"message": "Routing failed", "type": "routing_error"}},
         )
 
+    # v1.9.0-review-fixes: empty model_key means no candidate matched modality
+    if not routing.model_key:
+        logger.warning("Request %s: no candidate — %s", request_id, routing.reason)
+        return JSONResponse(
+            status_code=400,
+            content={"error": {"message": routing.reason, "type": "no_candidate"}},
+        )
+
     if is_streaming:
         return await _handle_streaming(
             request, request_data, request_id, routing,

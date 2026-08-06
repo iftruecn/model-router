@@ -9,6 +9,6 @@ venv/
 Thumbs.db
 config.yaml
 .git-rewrite/
-data/
+/data/
 _smoke_data/
 model_router.egg-info/

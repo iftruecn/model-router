@@ -75,15 +75,29 @@ def _load_yaml_builtin(path: str) -> dict:
 
 def _load_pricing_data() -> dict[str, dict[str, float]]:
     """Load pricing from YAML file. Uses PyYAML (required dependency)."""
-    # P2-29: use Path for robust project root resolution (works in packages)
     from pathlib import Path as _Path
-    # model_router/config/pricing.py -> project root is 3 levels up
-    _this_file = _Path(__file__).resolve()
-    project_root = _this_file.parent.parent.parent
-    yaml_path = str(project_root / 'pricing.yaml')
+    import importlib.resources as _res
 
-    if not os.path.exists(yaml_path):
-        logger.warning("pricing.yaml not found at %s, cost tracking disabled", yaml_path)
+    # Try package data first (pip install / Docker)
+    yaml_path = None
+    try:
+        _pkg_path = _Path(str(_res.files("model_router.data")))
+        _candidate = str(_pkg_path / "pricing.yaml")
+        if os.path.exists(_candidate):
+            yaml_path = _candidate
+    except (TypeError, FileNotFoundError, ModuleNotFoundError):
+        pass
+
+    # Fallback: repo root (dev mode — pricing.yaml at project root)
+    if yaml_path is None:
+        _this_file = _Path(__file__).resolve()
+        project_root = _this_file.parent.parent.parent
+        _candidate = str(project_root / "pricing.yaml")
+        if os.path.exists(_candidate):
+            yaml_path = _candidate
+
+    if yaml_path is None:
+        logger.warning("pricing.yaml not found, cost tracking disabled")
         return {}
 
     try:

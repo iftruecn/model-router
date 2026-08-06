@@ -939,15 +939,15 @@ async function loadCache(){
   document.getElementById("cache_entries").textContent=cache.entries||0;
   document.getElementById("cache_hit_rate").textContent=((cache.hit_rate||0)*100).toFixed(1)+"%";
   document.getElementById("cache_hits").textContent=cache.hits||cache.total_hits||0;
-  document.getElementById("cache_queries").textContent=cache.queries||cache.total_queries||0;
+  document.getElementById("cache_queries").textContent=(cache.hits||0)+(cache.misses||0);
 }
 
 async function loadLearning(){
   var learn=await j("/admin/learning");
-  document.getElementById("total_feedback").textContent=learn.total_feedback||0;
-  document.getElementById("positive_fb").textContent=learn.positive||0;
-  document.getElementById("negative_fb").textContent=learn.negative||0;
-  document.getElementById("samples_learned").textContent=learn.samples_learned||learn.total_samples||0;
+  document.getElementById("total_feedback").textContent=learn.feedback?.total||0;
+  document.getElementById("positive_fb").textContent=learn.feedback?.positive||0;
+  document.getElementById("negative_fb").textContent=learn.feedback?.negative||0;
+  document.getElementById("samples_learned").textContent=learn.learning?.total_samples||0;
 }
 
 // Event delegation for data-* buttons

@@ -72,6 +72,9 @@ Security = "https://github.com/iftruecn/model-router/security"
 [project.scripts]
 model-router = "model_router.__main__:main"
 
+[tool.setuptools.package-data]
+"model_router" = ["data/*.yaml"]
+
 [tool.setuptools.packages.find]
 include = ["model_router*"]
 
