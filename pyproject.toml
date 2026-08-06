@@ -30,7 +30,7 @@ classifiers = [
 # Run `pip-audit` or `safety check` regularly to verify
 dependencies = [
     "fastapi>=0.115.0,<1.0.0",       # 0.115+ fixes CVE-2024-47874 (path traversal)
-    "httpx>=0.27.0,<1.0.0",          # 0.27+ stable, no known CVEs
+    "httpx>=0.28.1,<1.0.0",          # 0.27+ stable, no known CVEs
     "PyYAML>=6.0.2,<7.0.0",          # 6.0.2 fixes CVE-2024-3651 (ReDoS)
     "starlette>=0.40.0,<1.0.0",     # 0.40+ required by FastAPI 0.115.x
 ]
@@ -48,7 +48,7 @@ dev = [
     "pytest>=8.0.0,<9.0.0",
     "pytest-asyncio>=0.23.0,<1.0.0",
     "pytest-timeout>=2.3.0,<3.0.0",
-    "httpx>=0.27.0,<1.0.0",          # for TestClient
+    "httpx>=0.28.1,<1.0.0",          # for TestClient
 ]
 
 # Security auditing tools
