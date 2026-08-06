@@ -169,6 +169,10 @@ async def _handle_streaming(
         fallback_chain_config=fallback_chain_config,
     )
 
+    # R13: _http_status is an int, must not leak into response headers
+    if extra_headers:
+        extra_headers.pop("_http_status", None)
+
     headers = {
         "Cache-Control": "no-cache",
         "Connection": "keep-alive",
@@ -202,6 +206,11 @@ async def _handle_non_streaming(
         fallback_chain_config=fallback_chain_config,
     )
 
+    # R13: extract _http_status BEFORE building headers (int can't be a header value)
+    http_status = 200
+    if extra_headers:
+        http_status = extra_headers.pop("_http_status", 200)
+
     headers = {
         "X-Request-Id": request_id,
         **routing.to_headers(),
@@ -211,7 +220,8 @@ async def _handle_non_streaming(
     # Check if response is an error
     if "error" in response_body:
         # P1-5 fix: use upstream status code from forwarding layer (default 502)
-        http_status = extra_headers.pop("_http_status", 502) if extra_headers else 502
+        if http_status == 200:
+            http_status = 502
         return JSONResponse(response_body, status_code=http_status, headers=headers)
 
-    return JSONResponse(response_body, status_code=200, headers=headers)
+    return JSONResponse(response_body, status_code=http_status, headers=headers)
